@@ -1,0 +1,6 @@
+# O Vercel usa este arquivo em vez do .gitignore no upload do deploy.
+# A música (public/audio/*.mp3) NÃO está listada aqui de propósito:
+# ela sobe junto com o deploy mesmo estando fora do git.
+node_modules
+dist
+.git

@@ -7,3 +7,4 @@ dist/
 public/audio/*.mp3
 
 .DS_Store
+.vercel
