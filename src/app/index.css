@@ -1,0 +1,281 @@
+:root {
+  --deep-blue: #0d1330;
+  --mid-blue: #1a2456;
+  --soft-violet: #8d84c8;
+  --warm-gold: #ffd9a0;
+  --text: #e9e6ff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--deep-blue);
+  color: var(--text);
+}
+
+.experience-root {
+  position: fixed;
+  inset: 0;
+}
+
+.experience-root canvas {
+  display: block;
+}
+
+/* ---------- overlays ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 10;
+}
+
+/* ---------- gate desktop-only ---------- */
+
+.gate-screen {
+  background: radial-gradient(ellipse at 50% 120%, #2a2a5e 0%, var(--deep-blue) 65%);
+  padding: 2rem;
+}
+
+.gate-sun {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6e0 0%, var(--warm-gold) 55%, transparent 75%);
+  filter: blur(1px);
+  margin-bottom: 2.2rem;
+  animation: gentle-pulse 5s ease-in-out infinite;
+}
+
+.gate-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: 2.2rem;
+  letter-spacing: 0.14em;
+  margin-bottom: 1.4rem;
+}
+
+.gate-message {
+  font-weight: 300;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: #bdb7e6;
+}
+
+/* ---------- start screen ---------- */
+
+.start-screen {
+  background: radial-gradient(ellipse at 50% 130%, #33306e 0%, var(--deep-blue) 60%);
+}
+
+.start-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 400;
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 40px rgba(255, 217, 160, 0.35);
+  animation: slow-rise 2.4s ease-out both;
+}
+
+.start-subtitle {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 1.15rem;
+  color: #b9b1e4;
+  margin-top: 0.9rem;
+  letter-spacing: 0.12em;
+  animation: slow-rise 2.4s 0.5s ease-out both;
+}
+
+.start-hint {
+  position: absolute;
+  bottom: 14vh;
+  font-size: 0.85rem;
+  font-weight: 300;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--warm-gold);
+  animation: hint-breathe 3.2s ease-in-out infinite;
+}
+
+/* ---------- veil de entrada ---------- */
+
+.veil {
+  background: radial-gradient(ellipse at 50% 130%, #2c295f 0%, var(--deep-blue) 62%);
+  opacity: 1;
+  transition: opacity 2.6s ease;
+  pointer-events: none;
+}
+
+.veil-hidden {
+  opacity: 0;
+}
+
+.veil-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  color: #9d95d1;
+  animation: hint-breathe 2.6s ease-in-out infinite;
+}
+
+/* ---------- partículas CSS ---------- */
+
+.css-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.css-particles span {
+  position: absolute;
+  bottom: -8px;
+  border-radius: 50%;
+  background: var(--warm-gold);
+  opacity: 0;
+  filter: blur(0.5px);
+  animation-name: particle-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* ---------- HUD ---------- */
+
+.help-panel {
+  position: fixed;
+  left: 1.4rem;
+  bottom: 1.4rem;
+  z-index: 5;
+  font-size: 0.78rem;
+  font-weight: 300;
+  color: rgba(233, 230, 255, 0.82);
+  background: rgba(13, 19, 48, 0.4);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(141, 132, 200, 0.18);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  line-height: 1.9;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.help-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.help-row kbd {
+  display: inline-block;
+  min-width: 3.4rem;
+  margin-right: 0.5rem;
+  color: var(--warm-gold);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.music-indicator {
+  position: fixed;
+  right: 1.4rem;
+  bottom: 1.4rem;
+  z-index: 5;
+  font-size: 0.75rem;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  color: rgba(233, 230, 255, 0.6);
+}
+
+.music-indicator kbd {
+  color: var(--warm-gold);
+  margin-right: 0.3rem;
+}
+
+/* ---------- pausa ---------- */
+
+.pause-screen {
+  background: rgba(13, 19, 48, 0.72);
+  backdrop-filter: blur(10px);
+  z-index: 8;
+}
+
+.pause-screen h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 400;
+  font-size: 2.6rem;
+  letter-spacing: 0.3em;
+  margin-bottom: 1rem;
+}
+
+.pause-screen p {
+  font-weight: 300;
+  font-size: 0.9rem;
+  color: #b9b1e4;
+  letter-spacing: 0.12em;
+}
+
+/* ---------- animações ---------- */
+
+@keyframes particle-rise {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-105vh);
+    opacity: 0;
+  }
+}
+
+@keyframes hint-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes gentle-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes slow-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

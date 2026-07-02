@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+
+# A música não é redistribuída no repositório (veja o README — seção Áudio):
+# coloque seu próprio .mp3 em public/audio/rain-lofi.mp3
+public/audio/*.mp3
+
+.DS_Store
