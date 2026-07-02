@@ -9,7 +9,7 @@ const FADE_SECONDS = 2.2
 
 class AudioController {
   private el: HTMLAudioElement | null = null
-  private raf = 0
+  private fadeTimer: ReturnType<typeof setInterval> | null = null
   private target = 0
 
   private ensureElement(): HTMLAudioElement {
@@ -48,22 +48,25 @@ class AudioController {
   private fadeTo(volume: number, onDone?: () => void): void {
     const el = this.ensureElement()
     this.target = volume
-    cancelAnimationFrame(this.raf)
+    if (this.fadeTimer) clearInterval(this.fadeTimer)
     let last = performance.now()
-    const tick = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.1)
+    // setInterval (e não rAF): continua rodando mesmo com a aba em segundo
+    // plano — o fade nunca fica preso no volume 0.
+    this.fadeTimer = setInterval(() => {
+      const now = performance.now()
+      const dt = Math.min((now - last) / 1000, 0.25)
       last = now
       const step = (TARGET_VOLUME / FADE_SECONDS) * dt
       const diff = this.target - el.volume
       if (Math.abs(diff) <= step) {
         el.volume = this.target
+        if (this.fadeTimer) clearInterval(this.fadeTimer)
+        this.fadeTimer = null
         onDone?.()
         return
       }
-      el.volume += Math.sign(diff) * step
-      this.raf = requestAnimationFrame(tick)
-    }
-    this.raf = requestAnimationFrame(tick)
+      el.volume = Math.min(1, Math.max(0, el.volume + Math.sign(diff) * step))
+    }, 50)
   }
 }
 
