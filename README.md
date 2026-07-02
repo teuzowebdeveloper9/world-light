@@ -1,196 +1,193 @@
 # World of Light
 
-Uma experiência 3D contemplativa para navegador: um pequeno mago de capa
-atravessando um mundo procedural **infinito** de luz — sol gigante no
-horizonte, god rays, partículas douradas, montanhas ao longe, árvores e grama
-balançando ao vento. Feita para **computador** (teclado); celulares e tablets
-veem uma tela de aviso.
+A contemplative 3D browser experience: a small caped mage wandering an
+**infinite** procedural world of light — a giant sun on the horizon, god rays,
+golden particles, distant mountains, trees and grass swaying in the wind.
+Built for **desktop** (keyboard); phones and tablets see a friendly notice
+screen instead.
 
-> 🤖 Este projeto foi desenvolvido com **Claude Fable 5** (Anthropic), o
-> modelo da família Claude 5, via Claude Code.
+> 🤖 This project was built with **Claude Fable 5** (Anthropic), a model from
+> the Claude 5 family, via Claude Code.
 
 Stack: Vite · React 19 · TypeScript · Three.js · @react-three/fiber · drei ·
-rapier (física) · postprocessing · simplex-noise · Zustand · Web Worker.
+rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 
-## Créditos do personagem
+## Character credits
 
-O mago é o modelo **Mage** do pacote
+The mage is the **Mage** model from
 **[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)**,
-criado por **[Kay Lousberg](https://kaylousberg.com)** ([itch.io](https://kaylousberg.itch.io/kaykit-adventurers)).
-Licença **CC0** (domínio público — uso pessoal, educacional e comercial livre;
-crédito opcional, mas merecido). A licença original acompanha o modelo em
-`public/models/CHARACTER_LICENSE.txt`. O rig e as animações (Idle, Walk, Run,
-Jump…) também são do pacote. Obrigado, Kay! 💛
+created by **[Kay Lousberg](https://kaylousberg.com)** ([itch.io](https://kaylousberg.itch.io/kaykit-adventurers)).
+Licensed **CC0** (public domain — free for personal, educational and
+commercial use; attribution optional, but well deserved). The original
+license ships with the model at `public/models/CHARACTER_LICENSE.txt`. The
+rig and animations (Idle, Walk, Run, Jump…) also come from the pack.
+Thank you, Kay! 💛
 
-## Mecânicas
+## Mechanics
 
-- **Movimento** — WASD/setas movem relativo à câmera; a velocidade é dirigida
-  por código (a cápsula de física tem atrito 0, então o terreno nunca "segura"
-  o player). `Shift` corre (5.5 → 11 u/s) com aceleração suavizada e menos
-  controle no ar.
-- **Pulo e planagem** — `Espaço` pula com gravidade forte (-24, pulo com
-  peso). Segurando `Espaço` durante a queda ele **plana** (queda limitada a
-  -2.2) por até ~5s de "energia", que recarrega ao pousar. A gravidade sempre
-  vence: não existe voo livre.
-- **Chão garantido** — o grounded detection é *analítico*: a mesma função
-  matemática que gera o terreno é amostrada na posição do player. Mesmo que um
-  collider ainda não tenha montado, ele nunca cai pelo mundo. Em rampas, o
-  modelo visual é puxado até a altura real do terreno (snap), então os pés
-  sempre tocam o chão.
-- **Animações** — crossfade automático entre Idle/Walk/Run/Jump conforme o
-  estado físico; a cadência dos passos acompanha a velocidade real.
-- **Manto ao vento** — meio-cilindro paramétrico (~220°) preso no anel dos
-  ombros, animado por senos + rajadas globais; barra levanta e arrasta ao
-  correr. Sem cloth simulation cara.
-- **Câmera** — terceira pessoa baixa (o mundo parece gigante), órbita com
-  `Q`/`E` ou arrasto do mouse, entrada cinematográfica em mergulho suave, e a
-  câmera nunca entra no terreno.
-- **Mundo infinito** — chunks determinísticos gerados em Web Worker com a
-  regra dos 60% (detalhes abaixo).
+- **Movement** — WASD/arrows move relative to the camera; velocity is fully
+  code-driven (the physics capsule has zero friction, so the terrain can
+  never "hold" the player). `Shift` runs (5.5 → 11 u/s) with smoothed
+  acceleration and reduced control while airborne.
+- **Jump & glide** — `Space` jumps with strong gravity (-24, a jump with
+  weight). Holding `Space` while falling makes the mage **glide** (fall
+  capped at -2.2) for up to ~5s of "energy", which recharges on landing.
+  Gravity always wins: there is no free flight.
+- **Guaranteed ground** — grounded detection is *analytical*: the same math
+  function that generates the terrain is sampled at the player's position.
+  Even if a collider hasn't mounted yet, the player can never fall through
+  the world. On slopes, the visual model is pulled down to the real terrain
+  height (snap), so the feet always touch the ground.
+- **Animations** — automatic crossfade between Idle/Walk/Run/Jump based on
+  the physics state; step cadence follows the actual speed.
+- **Wind cloak** — a parametric half-cylinder (~220°) pinned at the shoulder
+  ring, animated with sines + global wind gusts; the hem lifts and trails
+  when running. No expensive cloth simulation.
+- **Camera** — low third-person camera (the world feels huge), orbit with
+  `Q`/`E` or mouse drag, a cinematic diving entrance, and the camera never
+  clips into the terrain.
+- **Infinite world** — deterministic chunks generated in a Web Worker using
+  the 60% rule (details below).
 
 ---
 
-## Como rodar
+## Running it
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
 ```
 
-Build de produção:
+Production build:
 
 ```bash
 npm run build
-npm run preview    # serve o build em http://localhost:4173
+npm run preview    # serves the build at http://localhost:4173
 ```
 
 ---
 
-## Onde colocar o áudio
+## Where the audio goes
 
-A música deve ficar em:
+The music file must live at:
 
 ```
 public/audio/rain-lofi.mp3
 ```
 
-> **O `.mp3` não é versionado no repositório** (direitos da faixa pertencem ao
-> produtor — a trilha usada em desenvolvimento foi o beat gratuito
-> *"Lo-fi Type Beat — Rain"* de **Lee**). Coloque qualquer `.mp3` seu com esse
-> nome nessa pasta e a experiência o tocará. Sem o arquivo, tudo funciona —
-> apenas sem música.
+> **The `.mp3` is not versioned in this repository** (the track rights belong
+> to its producer — during development the free beat *"Lo-fi Type Beat —
+> Rain"* by **Lee** was used). Drop any `.mp3` of yours with that name in
+> that folder and the experience will play it. Without the file everything
+> still works — just without music.
 
-O áudio toca em **loop**, só começa **após a primeira tecla** (política de
-autoplay dos navegadores), inicia com volume 0.35 e sempre entra/sai com
-**fade suave**. A preferência ligada/desligada fica salva no `localStorage`.
+The audio plays in a **loop**, only starts **after the first keypress**
+(browser autoplay policy), begins at volume 0.35 and always fades in/out
+smoothly. The on/off preference is saved to `localStorage`.
 
 ---
 
-## Controles
+## Controls
 
-| Tecla | Ação |
+| Key | Action |
 | --- | --- |
-| `W A S D` / setas | mover |
-| `Shift` | correr |
-| `Espaço` | pular · **segurar no ar = planar** (energia recarrega ao pousar) |
-| `Q` / `E` ou arrastar o mouse | girar a câmera |
-| `M` | ligar/desligar música |
-| `H` | esconder/mostrar a ajuda |
-| `Esc` | pausar/voltar |
+| `W A S D` / arrows | move |
+| `Shift` | run |
+| `Space` | jump · **hold in the air = glide** (energy recharges on landing) |
+| `Q` / `E` or mouse drag | rotate the camera |
+| `M` | toggle music |
+| `H` | hide/show the help panel |
+| `Esc` | pause/resume |
 
 ---
 
-## Como o algoritmo de chunks funciona
+## How the chunk algorithm works
 
-O mundo é dividido em chunks de `96×96` unidades (`CHUNK_SIZE`), gerados de
-forma **determinística**: `seed global + coordenadas do chunk` sempre produzem
-o mesmo terreno, as mesmas árvores, as mesmas pedras.
+The world is split into `96×96`-unit chunks (`CHUNK_SIZE`), generated
+**deterministically**: `global seed + chunk coordinates` always produce the
+same terrain, the same trees, the same rocks.
 
-1. **Anel ativo** — um quadrado de raio 3 (`ACTIVE_RADIUS`, 7×7 chunks) é
-   mantido ao redor do player. Chunks além do raio 5 (`UNLOAD_RADIUS`) são
-   descartados com `dispose()` completo de geometrias e materiais.
-2. **Regra dos 60%** (`PRELOAD_THRESHOLD`) — a posição local do player dentro
-   do chunk é calculada com módulo positivo:
+1. **Active ring** — a square of radius 3 (`ACTIVE_RADIUS`, 7×7 chunks) is
+   kept around the player. Chunks beyond radius 5 (`UNLOAD_RADIUS`) are
+   discarded with a full `dispose()` of geometries and materials.
+2. **The 60% rule** (`PRELOAD_THRESHOLD`) — the player's local position
+   inside the chunk is computed with a positive modulo:
 
    ```ts
    const localX = positiveModulo(player.x, CHUNK_SIZE)
-   if (localX > CHUNK_SIZE * 0.6) preload(direita)  // + diagonais
-   if (localX < CHUNK_SIZE * 0.4) preload(esquerda)
-   // idem para o eixo Z
+   if (localX > CHUNK_SIZE * 0.6) preload(right)   // + diagonals
+   if (localX < CHUNK_SIZE * 0.4) preload(left)
+   // same for the Z axis
    ```
 
-   Ao cruzar 60% do chunk em direção a uma borda, a **próxima banda** de
-   chunks naquela direção começa a gerar antes de o player chegar lá.
-3. **Prioridade por velocidade** — a fila de geração é ordenada por distância
-   **menos** um bônus na direção da velocidade: correndo, os chunks à frente
-   são gerados primeiro (`chunkPriority`).
-4. **Web Worker** — heightmap, normais analíticas, cores por vértice e
-   distribuição de objetos rodam em `src/workers/chunkWorker.ts`. O worker
-   devolve `Float32Array`s via **transferables** (zero cópia). A main thread
-   aplica no máximo **2 resultados por frame** — nunca trava o render.
-5. **Sem buracos, sem quedas** — as normais são calculadas analiticamente da
-   mesma função de altura (iluminação contínua entre chunks), cada chunk tem
-   uma "saia" nas bordas, e o player usa **detecção de chão analítica**: mesmo
-   que um collider ainda não tenha montado, ele nunca atravessa o terreno.
-6. **Física local** — colliders trimesh existem **apenas** no 3×3 ao redor do
-   player (`PHYSICS_RADIUS`), reutilizando os buffers da própria renderização.
+   Once the player crosses 60% of the chunk toward an edge, the **next band**
+   of chunks in that direction starts generating before they arrive.
+3. **Velocity-based priority** — the generation queue is ordered by distance
+   **minus** a bonus along the velocity direction: while running, the chunks
+   ahead are generated first (`chunkPriority`).
+4. **Web Worker** — heightmap, analytical normals, vertex colors and object
+   placement all run in `src/workers/chunkWorker.ts`. The worker returns
+   `Float32Array`s via **transferables** (zero copy). The main thread applies
+   at most **2 results per frame** — the render loop never stalls.
+5. **No holes, no falls** — normals are computed analytically from the same
+   height function (continuous lighting across chunk borders), every chunk
+   has an edge "skirt", and the player uses **analytical ground detection**:
+   even if a collider hasn't mounted yet, they never fall through terrain.
+6. **Local physics** — trimesh colliders exist **only** in the 3×3 around the
+   player (`PHYSICS_RADIUS`), reusing the exact render buffers.
 
-Cada chunk contém: terreno colorido por vértice (campina, trilhas de areia,
-rocha, picos claros), árvores e pedras instanciadas, grama com vento em
-shader, e raramente um obelisco de luz que brilha no bloom.
+Each chunk contains: vertex-colored terrain (meadow, sand trails, rock, pale
+peaks), instanced trees and rocks, shader-wind grass, and rarely a glowing
+light obelisk picked up by the bloom.
 
-## Otimizações aplicadas
+## Applied optimizations
 
-- **Web Worker + transferables** para toda a geração procedural
-- **Fila com prioridade** e orçamento de 2 chunks aplicados por frame
-- **InstancedMesh** para árvores, pedras e grama (1 draw call por tipo/chunk)
-- **LOD por anel**: grama só no anel 1; árvore detalhada até o anel 2 e
-  cone-silhueta além; sombras dinâmicas só no anel 1
-- **Vento em shader** via `onBeforeCompile` com **uma única uniform global**
-  (um update por frame move grama e árvores do mundo todo)
-- **Materiais e geometrias compartilhados** por fábricas; clones por chunk só
-  durante o fade-in (e `transparent` é desligado ao terminar)
-- **Dispose completo** (geometria + materiais) ao descartar chunks — sem leaks
-- **Bounding spheres manuais** por chunk (frustum culling sem varrer vértices)
-- **DPR limitado a 1.5** + `PerformanceMonitor` (cai para 1.0 sob carga)
-- **Canvas sem MSAA** — antialias via SMAA no composer (mais barato)
-- Sombras com frustum apertado (±95) **seguindo o player**, mapa 2048
-- Partículas com **limite fixo** (1200) e wrap ao redor da câmera — custo
-  constante, zero alocação por frame
-- Estado de alta frequência fora do React (refs mutáveis) — re-render de
-  componentes só em eventos discretos (troca de chunk, pausa, etc.)
-- Céu, sol e montanhas-silhueta do horizonte **em shader** (custo ~zero)
+- **Web Worker + transferables** for all procedural generation
+- **Priority queue** with a budget of 2 chunk builds applied per frame
+- **InstancedMesh** for trees, rocks and grass (1 draw call per type/chunk)
+- **Ring-based LOD**: grass only in ring 1; detailed trees up to ring 2 and
+  silhouette cones beyond; dynamic shadows only in ring 1
+- **Shader wind** via `onBeforeCompile` with a **single global uniform**
+  (one update per frame moves every grass blade and tree in the world)
+- **Shared materials and geometries** via factories; per-chunk clones only
+  during fade-in (and `transparent` is turned off when it finishes)
+- **Full dispose** (geometry + materials) when chunks unload — no leaks
+- **Manual bounding spheres** per chunk (frustum culling without scanning
+  vertices on the main thread)
+- **DPR capped at 1.5** + `PerformanceMonitor` (drops to 1.0 under load)
+- **Canvas without MSAA** — anti-aliasing via SMAA in the composer (cheaper)
+- Tight shadow frustum (±95) **following the player**, 2048 map
+- Particles with a **fixed cap** (1200) wrapping around the camera — constant
+  cost, zero per-frame allocation
+- High-frequency state kept outside React (mutable refs) — components only
+  re-render on discrete events (chunk crossing, pause, etc.)
+- Sky, sun and horizon silhouette mountains **in shaders** (~zero cost)
 
-## Estrutura
+## Structure
 
 ```
 src/
-  app/           bootstrap + CSS global
-  experience/    gate desktop-only, tela inicial, HUD, Canvas
-  world/         chunks: manager, terreno, noise, bioma, spawner
-  workers/       chunkWorker (geração) + cliente com fila de prioridade
-  player/        física do player, câmera, capa ao vento, input
-  visuals/       sol, céu, partículas, materiais, pós-processamento
-  physics/       mundo Rapier + collider de terreno
-  audio/         música em loop com fades
-  state/         store Zustand
+  app/           bootstrap + global CSS
+  experience/    desktop-only gate, start screen, HUD, Canvas
+  world/         chunks: manager, terrain, noise, biome, spawner
+  workers/       chunkWorker (generation) + priority-queue client
+  player/        player physics, camera, wind cloak, input
+  visuals/       sun, sky, particles, materials, post-processing
+  physics/       Rapier world + terrain collider
+  audio/         looping music with fades
+  state/         Zustand store
   utils/         math, device, dispose
 public/
-  audio/rain-lofi.mp3
-  models/character.glb   ← KayKit Adventurers (Mago), licença CC0
+  audio/rain-lofi.mp3      (not versioned — see the Audio section)
+  models/character.glb     ← KayKit Adventurers (Mage), CC0 license
 ```
 
-**Créditos do modelo:** personagem do pacote
-[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)
-de Kay Lousberg, licença **CC0** (uso livre, crédito opcional — licença em
-`public/models/CHARACTER_LICENSE.txt`).
+## Next steps for the visuals
 
-## Próximos passos para o visual
-
-- Cloth simulation Verlet real para a capa (constraints de distância)
-- Nuvens volumétricas leves (raymarch barato num quad no horizonte)
-- Água: lagos low-poly com reflexo do sol nos vales entre montanhas
-- Vaga-lumes/luzes noturnas + ciclo de dia/noite lento
-- Footsteps: partículas de poeira e sons de passos por bioma
-- Pós: SSAO leve no anel próximo, depth of field sutil no horizonte
-- Streaming de detalhe: re-gerar chunks do anel 1 com resolução maior
+- Real Verlet cloth simulation for the cloak (distance constraints)
+- Light volumetric clouds (cheap raymarch on a horizon quad)
+- Water: low-poly lakes reflecting the sun in valleys between mountains
+- Fireflies/night lights + a slow day/night cycle
+- Footsteps: dust particles and per-biome step sounds
+- Post: light SSAO on the near ring, subtle depth of field on the horizon
+- Detail streaming: regenerate ring-1 chunks at higher resolution
