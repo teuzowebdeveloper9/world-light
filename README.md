@@ -99,11 +99,12 @@ The music file must live at:
 public/audio/rain-lofi.mp3
 ```
 
-> **The `.mp3` is not versioned in this repository** (the track rights belong
-> to its producer — during development the free beat *"Lo-fi Type Beat —
-> Rain"* by **Lee** was used). Drop any `.mp3` of yours with that name in
-> that folder and the experience will play it. Without the file everything
-> still works — just without music.
+> The soundtrack is the free beat *"(FREE) Lo-fi Type Beat — Rain"* by
+> **Lee** (YouTube). It ships with the repository so deploys always include
+> music. All rights to the track belong to its producer — if you are the
+> producer and want it removed, open an issue and it will be swapped
+> immediately. You can also replace it with any `.mp3` of yours using the
+> same file name.
 
 The audio plays in a **loop**, only starts **after the first keypress**
 (browser autoplay policy), begins at volume 0.35 and always fades in/out
