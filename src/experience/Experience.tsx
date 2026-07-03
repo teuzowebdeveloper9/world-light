@@ -9,6 +9,7 @@ import type * as THREE from 'three'
 import { useExperienceStore } from '../state/useExperienceStore'
 import { isDesktopExperience } from '../utils/device'
 import { audioController } from '../audio/AudioController'
+import { sfxController } from '../audio/SfxController'
 import { useMusic } from '../audio/useMusic'
 import { cameraRig } from '../player/cameraRig'
 import { PhysicsWorld } from '../physics/PhysicsWorld'
@@ -75,6 +76,7 @@ export function Experience() {
       if (s.phase === 'start') {
         // Início do áudio dentro do gesto do usuário (política de autoplay).
         audioController.start(s.musicOn)
+        sfxController.unlock()
         s.setPhase('entering')
         return
       }
@@ -84,6 +86,16 @@ export function Experience() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Auto-pause ao perder a aba: voltar nunca te encontra em queda livre.
+  useEffect(() => {
+    const onVisibility = () => {
+      const s = useExperienceStore.getState()
+      if (document.hidden && s.phase === 'playing' && !s.paused) s.setPaused(true)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
   // Primeiro círculo de chunks pronto → câmera entra suavemente no mundo.
