@@ -113,9 +113,13 @@ export function ChunkManager() {
   function checkWorldReady(): void {
     const store = useExperienceStore.getState()
     if (store.worldReady) return
+    // O círculo inicial é ao redor do PONTO DE NASCIMENTO (que pode ser
+    // qualquer bioma), não da origem do mundo.
+    const scx = getChunkCoord(store.spawn.x)
+    const scz = getChunkCoord(store.spawn.z)
     for (let dz = -1; dz <= 1; dz++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const entry = chunks.current.get(chunkKey(dx, dz))
+        const entry = chunks.current.get(chunkKey(scx + dx, scz + dz))
         if (!entry?.payload) return
       }
     }

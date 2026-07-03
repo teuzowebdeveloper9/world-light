@@ -7,11 +7,16 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../world/noise'
 
-export const SUN_DIRECTION = new THREE.Vector3(0.28, 0.3, -1).normalize()
-export const SUN_DISTANCE = 950
-
 /** Uniform global de tempo do vento — atualizada uma única vez por frame no World. */
 export const windTimeUniform: { value: number } = { value: 0 }
+
+/** mergeGeometries exige indexação consistente — normaliza para não-indexado. */
+function nonIndexed(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  if (!geo.index) return geo
+  const ni = geo.toNonIndexed()
+  geo.dispose()
+  return ni
+}
 
 function fillColor(geo: THREE.BufferGeometry, color: THREE.Color): THREE.BufferGeometry {
   const count = geo.getAttribute('position').count
@@ -25,17 +30,13 @@ function fillColor(geo: THREE.BufferGeometry, color: THREE.Color): THREE.BufferG
   return geo
 }
 
-const TRUNK_COLOR = new THREE.Color('#4a3859')
-const CANOPY_COLOR = new THREE.Color('#2f6d5c')
-const CANOPY_TOP_COLOR = new THREE.Color('#3f8a6a')
-
-/** Árvore estilizada detalhada: tronco + duas copas cônicas (uma única geometria). */
-export const treeGeometryDetailed: THREE.BufferGeometry = (() => {
-  const trunk = fillColor(new THREE.CylinderGeometry(0.14, 0.24, 1.6, 6, 1), TRUNK_COLOR)
+/** Conífera estilizada: tronco + duas copas cônicas (uma única geometria). */
+function makeConiferGeometry(trunkHex: number, lowHex: number, topHex: number): THREE.BufferGeometry {
+  const trunk = fillColor(new THREE.CylinderGeometry(0.14, 0.24, 1.6, 6, 1), new THREE.Color(trunkHex))
   trunk.translate(0, 0.8, 0)
-  const canopyLow = fillColor(new THREE.ConeGeometry(1.5, 2.6, 7, 1), CANOPY_COLOR)
+  const canopyLow = fillColor(new THREE.ConeGeometry(1.5, 2.6, 7, 1), new THREE.Color(lowHex))
   canopyLow.translate(0, 2.5, 0)
-  const canopyHigh = fillColor(new THREE.ConeGeometry(1.0, 2.0, 7, 1), CANOPY_TOP_COLOR)
+  const canopyHigh = fillColor(new THREE.ConeGeometry(1.0, 2.0, 7, 1), new THREE.Color(topHex))
   canopyHigh.translate(0, 4.0, 0)
   const merged = mergeGeometries([trunk, canopyLow, canopyHigh], false)
   trunk.dispose()
@@ -43,15 +44,135 @@ export const treeGeometryDetailed: THREE.BufferGeometry = (() => {
   canopyHigh.dispose()
   merged.computeBoundingSphere()
   return merged
+}
+
+/** Campos: conífera azul-esverdeada. */
+export const treeGeometryDetailed = makeConiferGeometry(0x4a3859, 0x2f6d5c, 0x3f8a6a)
+/** Gelo: pinheiro nevado, copas quase brancas. */
+export const treeGeometryIce = makeConiferGeometry(0x54486b, 0xc4d8e4, 0xf0f6fc)
+
+/** Deserto: cacto colunar com dois braços. */
+export const cactusGeometry: THREE.BufferGeometry = (() => {
+  const green = new THREE.Color(0x4f8a5c)
+  const body = fillColor(new THREE.CylinderGeometry(0.26, 0.34, 2.6, 7, 1), green)
+  body.translate(0, 1.3, 0)
+  const armL = fillColor(new THREE.CylinderGeometry(0.13, 0.15, 1.0, 6, 1), green)
+  armL.translate(-0.48, 1.75, 0)
+  const armLh = fillColor(new THREE.CylinderGeometry(0.12, 0.13, 0.5, 6, 1), green)
+  armLh.rotateZ(Math.PI / 2)
+  armLh.translate(-0.32, 1.3, 0)
+  const armR = fillColor(new THREE.CylinderGeometry(0.12, 0.14, 0.8, 6, 1), green)
+  armR.translate(0.46, 2.0, 0)
+  const armRh = fillColor(new THREE.CylinderGeometry(0.11, 0.12, 0.44, 6, 1), green)
+  armRh.rotateZ(Math.PI / 2)
+  armRh.translate(0.32, 1.65, 0)
+  const merged = mergeGeometries([body, armL, armLh, armR, armRh], false)
+  ;[body, armL, armLh, armR, armRh].forEach((g) => g.dispose())
+  merged.computeBoundingSphere()
+  return merged
 })()
 
-/** Silhueta distante: um único cone barato. */
-export const treeGeometryFar: THREE.BufferGeometry = (() => {
-  const cone = fillColor(new THREE.ConeGeometry(1.4, 4.6, 5, 1), CANOPY_COLOR)
-  cone.translate(0, 2.5, 0)
-  cone.computeBoundingSphere()
-  return cone
+/** Árvore podre: tronco escuro retorcido com galhos nus. */
+export const rottenTreeGeometry: THREE.BufferGeometry = (() => {
+  const dark = new THREE.Color(0x352c42)
+  const trunk = fillColor(new THREE.CylinderGeometry(0.09, 0.22, 2.4, 6, 1), dark)
+  trunk.translate(0, 1.2, 0)
+  const b1 = fillColor(new THREE.CylinderGeometry(0.04, 0.08, 1.2, 5, 1), dark)
+  b1.rotateZ(0.75)
+  b1.translate(0.42, 2.0, 0)
+  const b2 = fillColor(new THREE.CylinderGeometry(0.03, 0.07, 1.0, 5, 1), dark)
+  b2.rotateZ(-0.95)
+  b2.translate(-0.36, 1.7, 0.1)
+  const b3 = fillColor(new THREE.CylinderGeometry(0.03, 0.06, 0.9, 5, 1), dark)
+  b3.rotateX(0.8)
+  b3.translate(0, 2.3, -0.3)
+  const merged = mergeGeometries([trunk, b1, b2, b3], false)
+  ;[trunk, b1, b2, b3].forEach((g) => g.dispose())
+  merged.computeBoundingSphere()
+  return merged
 })()
+
+/** Árvore frutífera: copa redonda cheia de frutas vermelhas. */
+export const fruitTreeGeometry: THREE.BufferGeometry = (() => {
+  const trunk = fillColor(
+    nonIndexed(new THREE.CylinderGeometry(0.16, 0.28, 1.5, 6, 1)),
+    new THREE.Color(0x5a4a38)
+  )
+  trunk.translate(0, 0.75, 0)
+  const canopy = fillColor(
+    nonIndexed(new THREE.IcosahedronGeometry(1.35, 1)),
+    new THREE.Color(0x4f8a54)
+  )
+  canopy.scale(1, 0.85, 1)
+  canopy.translate(0, 2.3, 0)
+  const parts = [trunk, canopy]
+  const rng = mulberry32(0xf417)
+  const fruitColor = new THREE.Color(0xff6b5e)
+  for (let i = 0; i < 8; i++) {
+    const a = rng() * Math.PI * 2
+    const e = rng() * Math.PI - Math.PI / 2
+    const fruit = fillColor(nonIndexed(new THREE.SphereGeometry(0.14, 6, 5)), fruitColor)
+    fruit.translate(
+      Math.cos(a) * Math.cos(e) * 1.25,
+      2.3 + Math.sin(e) * 0.95,
+      Math.sin(a) * Math.cos(e) * 1.25
+    )
+    parts.push(fruit)
+  }
+  const merged = mergeGeometries(parts, false)
+  parts.forEach((g) => g.dispose())
+  merged.computeBoundingSphere()
+  return merged
+})()
+
+/** Árvore de luz (1 em 1.000.000): tronco pálido; a copa ganha material emissivo. */
+export const lightTreeTrunkGeometry: THREE.BufferGeometry = (() => {
+  const trunk = fillColor(new THREE.CylinderGeometry(0.18, 0.3, 2.2, 7, 1), new THREE.Color(0xd8cfae))
+  trunk.translate(0, 1.1, 0)
+  trunk.computeBoundingSphere()
+  return trunk
+})()
+
+export const lightTreeCanopyGeometry: THREE.BufferGeometry = (() => {
+  const canopy = new THREE.IcosahedronGeometry(1.5, 1)
+  canopy.translate(0, 3.1, 0)
+  canopy.computeBoundingSphere()
+  return canopy
+})()
+
+export function makeLightTreeCanopyMaterial(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: '#fff6d8',
+    emissive: new THREE.Color('#ffdf9e'),
+    emissiveIntensity: 2.6,
+    roughness: 0.5,
+  })
+}
+
+/** Aura da árvore de luz: esfera aditiva suave ao redor da copa. */
+export function makeAuraMaterial(): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color: new THREE.Color(1.6, 1.3, 0.7),
+    transparent: true,
+    opacity: 0.16,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide,
+  })
+}
+
+const farConeCache = new Map<number, THREE.BufferGeometry>()
+/** Silhueta distante barata, com cor por bioma. */
+export function getFarTreeGeometry(hex: number): THREE.BufferGeometry {
+  let geo = farConeCache.get(hex)
+  if (!geo) {
+    geo = fillColor(new THREE.ConeGeometry(1.4, 4.6, 5, 1), new THREE.Color(hex))
+    geo.translate(0, 2.5, 0)
+    geo.computeBoundingSphere()
+    farConeCache.set(hex, geo)
+  }
+  return geo
+}
 
 /** Pedra low-poly com vértices deterministicamente irregulares. */
 export const rockGeometry: THREE.BufferGeometry = (() => {

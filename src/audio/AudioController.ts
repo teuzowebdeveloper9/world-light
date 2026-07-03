@@ -11,6 +11,25 @@ class AudioController {
   private el: HTMLAudioElement | null = null
   private fadeTimer: ReturnType<typeof setInterval> | null = null
   private target = 0
+  private unlockAttached = false
+
+  /**
+   * Rede de segurança contra autoplay: se o primeiro play() falhar por
+   * qualquer razão (política do browser, race), QUALQUER tecla ou clique
+   * seguinte tenta de novo — a música nunca fica presa no silêncio.
+   */
+  private attachUnlock(): void {
+    if (this.unlockAttached) return
+    this.unlockAttached = true
+    const retry = () => {
+      const el = this.el
+      if (el && this.target > 0 && el.paused) {
+        el.play().catch(() => {})
+      }
+    }
+    window.addEventListener('keydown', retry)
+    window.addEventListener('pointerdown', retry)
+  }
 
   private ensureElement(): HTMLAudioElement {
     if (!this.el) {
@@ -25,9 +44,10 @@ class AudioController {
   /** Chame dentro de um handler de interação do usuário. */
   start(musicOn: boolean): void {
     const el = this.ensureElement()
+    this.attachUnlock()
     if (musicOn) {
       el.play().catch(() => {
-        // Arquivo ausente ou autoplay bloqueado: a experiência segue sem música.
+        // Arquivo ausente ou autoplay bloqueado: o unlock listener tenta de novo.
       })
       this.fadeTo(TARGET_VOLUME)
     }
@@ -35,6 +55,7 @@ class AudioController {
 
   setEnabled(on: boolean): void {
     const el = this.ensureElement()
+    this.attachUnlock()
     if (on) {
       if (el.paused) {
         el.play().catch(() => {})

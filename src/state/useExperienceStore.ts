@@ -5,6 +5,17 @@
  */
 import { create } from 'zustand'
 import { WORLD_SEED } from '../world/chunkTypes'
+import { findSpawnPoint, getTerrainSampler, type BiomeId } from '../world/noise'
+import { playerState } from '../player/PlayerController'
+
+// Sorteia o bioma de nascimento da sessão (40% campos, 30% deserto, 30% gelo)
+// e posiciona o estado do player lá antes de qualquer chunk ser pedido.
+const spawnPoint = findSpawnPoint(WORLD_SEED, Math.random())
+playerState.position.set(
+  spawnPoint.x,
+  getTerrainSampler(WORLD_SEED).height(spawnPoint.x, spawnPoint.z) + 1,
+  spawnPoint.z
+)
 
 export type ExperiencePhase = 'gate' | 'blocked' | 'start' | 'entering' | 'playing'
 
@@ -25,6 +36,8 @@ interface ExperienceState {
   musicOn: boolean
   worldReady: boolean
   seed: number
+  /** Ponto de nascimento da sessão (bioma sorteado). */
+  spawn: { x: number; z: number; biome: BiomeId }
   playerChunk: { cx: number; cz: number }
   setPhase: (phase: ExperiencePhase) => void
   setPaused: (paused: boolean) => void
@@ -41,6 +54,7 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
   musicOn: initialMusicOn(),
   worldReady: false,
   seed: WORLD_SEED,
+  spawn: spawnPoint,
   playerChunk: { cx: 0, cz: 0 },
   setPhase: (phase) => set({ phase }),
   setPaused: (paused) => set({ paused }),

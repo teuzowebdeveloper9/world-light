@@ -12,16 +12,22 @@ screen instead.
 Stack: Vite · React 19 · TypeScript · Three.js · @react-three/fiber · drei ·
 rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 
-## Character credits
+## Asset credits
 
-The mage is the **Mage** model from
-**[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)**,
-created by **[Kay Lousberg](https://kaylousberg.com)** ([itch.io](https://kaylousberg.itch.io/kaykit-adventurers)).
-Licensed **CC0** (public domain — free for personal, educational and
-commercial use; attribution optional, but well deserved). The original
-license ships with the model at `public/models/CHARACTER_LICENSE.txt`. The
-rig and animations (Idle, Walk, Run, Jump…) also come from the pack.
-Thank you, Kay! 💛
+- **Mage** — from **[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)**,
+  created by **[Kay Lousberg](https://kaylousberg.com)** ([itch.io](https://kaylousberg.itch.io/kaykit-adventurers)).
+  Licensed **CC0**. Original license at `public/models/CHARACTER_LICENSE.txt`.
+  The rig and animations (Idle, Walk, Run, Jump…) also come from the pack.
+  Thank you, Kay! 💛
+- **Dogs (Husky & Shiba Inu)** — from **LowPoly Animated Animals** by
+  **[Quaternius](https://quaternius.com)** ([poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS)).
+  Licensed **CC0**. Thank you, Quaternius! 🐕
+
+## License
+
+Free for **non-commercial** use (with attribution). **Commercial use requires
+a written agreement with the author, including a negotiated revenue share** —
+see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
 
 ## Mechanics
 
@@ -48,6 +54,24 @@ Thank you, Kay! 💛
   clips into the terrain.
 - **Infinite world** — deterministic chunks generated in a Web Worker using
   the 60% rule (details below).
+- **Biomes** — three macro-regions driven by a continental temperature noise:
+  **meadows** (the starting look), **desert** (warm dunes + cacti) and **ice**
+  (pale snowfields + snowy pines), with smooth color blending at the borders.
+  Each new session has a **spawn chance per biome**: 40% meadows, 30% desert,
+  30% ice.
+- **Day/night cycle** — a day lasts **10 minutes**, the night **3 minutes**.
+  The sun rises, arcs and sets; at night a **bright, yellow-glowing moon**
+  lights the world, the sky palette darkens and the stars come out. Sun,
+  moon, directional light, hemisphere light, fog color and the sky shader all
+  follow the cycle.
+- **Tree rarity** — every tree rolls a deterministic rarity: **~1 in 10** is
+  a rotten tree (dark bare branches), **~1 in 1,000** is a fruit tree (round
+  canopy full of red fruits) and **~1 in 1,000,000** is a **light tree** with
+  a glowing aura and its own light. Normal trees change with the biome:
+  conifer / cactus / snowy pine.
+- **Dogs** 🐕 — cute Huskies and Shiba Inus (Quaternius, CC0) spawn
+  deterministically per area (~12% of chunks host one, max 6 alive at once).
+  They wander, sniff, eat — and when you get close they run to you.
 
 ---
 

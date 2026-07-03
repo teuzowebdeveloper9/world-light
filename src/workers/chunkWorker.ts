@@ -4,7 +4,7 @@
  * acontece aqui — a main thread só recebe TypedArrays prontos via transferables
  * e constrói as meshes. Nada de travar o frame.
  */
-import { getTerrainSampler, mulberry32, hashCoords } from '../world/noise'
+import { getTerrainSampler, mulberry32, hashCoords, type BiomeWeights } from '../world/noise'
 import { terrainVertexColor, type RGB } from '../world/biome'
 import { spawnDecorations } from '../world/objectSpawner'
 import {
@@ -34,6 +34,7 @@ function generateChunkData(seed: number, cx: number, cz: number): ChunkPayload {
   const dithRng = mulberry32(hashCoords(seed ^ 0x77aa11, cx, cz))
   const n: [number, number, number] = [0, 1, 0]
   const rgb: RGB = [0, 0, 0]
+  const weights: BiomeWeights = { temperate: 1, desert: 0, ice: 0 }
   let minY = Infinity
   let maxY = -Infinity
 
@@ -61,12 +62,14 @@ function generateChunkData(seed: number, cx: number, cz: number): ChunkPayload {
       normals[o + 1] = n[1]
       normals[o + 2] = n[2]
 
+      sampler.biomeWeights(x, z, weights)
       terrainVertexColor(
         {
           y: h,
           slopeUp: n[1],
           biome: sampler.biome(x, z),
           path: sampler.path(x, z),
+          weights,
           dither: dithRng() * 2 - 1,
         },
         rgb
@@ -86,9 +89,13 @@ function generateChunkData(seed: number, cx: number, cz: number): ChunkPayload {
     normals,
     colors,
     trees: deco.trees,
+    rotten: deco.rotten,
+    fruits: deco.fruits,
+    lights: deco.lights,
     rocks: deco.rocks,
     grass: deco.grass,
     shards: deco.shards,
+    biomeId: deco.biomeId,
     minY,
     maxY,
   }
@@ -103,6 +110,9 @@ ctx.onmessage = (e: MessageEvent<ChunkRequestMessage>) => {
     payload.normals.buffer,
     payload.colors.buffer,
     payload.trees.buffer,
+    payload.rotten.buffer,
+    payload.fruits.buffer,
+    payload.lights.buffer,
     payload.rocks.buffer,
     payload.grass.buffer,
     payload.shards.buffer,

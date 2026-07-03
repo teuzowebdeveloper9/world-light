@@ -45,8 +45,6 @@ const MODEL_SCALE = 0.9
  */
 const HIDDEN_ACCESSORIES = ['Spellbook', 'Spellbook_open', '1H_Wand', 'Mage_Cape']
 
-const SPAWN_X = 0
-const SPAWN_Z = 6
 
 type AnimName = 'Idle' | 'Walking_A' | 'Running_A' | 'Jump_Idle'
 
@@ -120,10 +118,15 @@ export function Player() {
   const rb = useRef<RapierRigidBody>(null)
   const visual = useRef<THREE.Group>(null)
   const seed = useExperienceStore((s) => s.seed)
+  const spawnPt = useExperienceStore((s) => s.spawn)
   const sampler = useMemo(() => getTerrainSampler(seed), [seed])
   const spawn = useMemo<[number, number, number]>(
-    () => [SPAWN_X, sampler.height(SPAWN_X, SPAWN_Z) + FEET_OFFSET + 1.2, SPAWN_Z],
-    [sampler]
+    () => [
+      spawnPt.x,
+      sampler.height(spawnPt.x, spawnPt.z) + FEET_OFFSET + 1.2,
+      spawnPt.z,
+    ],
+    [sampler, spawnPt]
   )
   const prevJump = useRef(false)
   const glideEnergy = useRef(GLIDE_ENERGY_SECONDS)

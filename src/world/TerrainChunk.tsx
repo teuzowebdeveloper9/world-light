@@ -2,6 +2,10 @@
  * Um chunk pronto: terreno com cores por vértice, decorações instanciadas
  * (1 draw call por tipo), collider trimesh apenas quando próximo, LOD por
  * anel de distância e fade-in orgânico ao surgir.
+ *
+ * A vegetação muda com o bioma (conífera/cacto/pinheiro nevado) e as árvores
+ * têm raridade: podres (~1/10), frutíferas (~1/1.000) e árvores de luz
+ * (~1/1.000.000) com aura brilhante.
  */
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -9,6 +13,7 @@ import * as THREE from 'three'
 import { RigidBody, TrimeshCollider } from '@react-three/rapier'
 import { useExperienceStore } from '../state/useExperienceStore'
 import { chunkDistance } from './chunkMath'
+import { BIOME_DESERT, BIOME_ICE } from './noise'
 import {
   CHUNK_SIZE,
   GRASS_RADIUS,
@@ -23,16 +28,24 @@ import {
 import { buildChunkIndices } from './chunkMath'
 import { getTrimeshArgs } from '../physics/terrainCollider'
 import {
+  cactusGeometry,
+  fruitTreeGeometry,
+  getFarTreeGeometry,
   grassGeometry,
+  lightTreeCanopyGeometry,
+  lightTreeTrunkGeometry,
+  makeAuraMaterial,
   makeGrassMaterial,
+  makeLightTreeCanopyMaterial,
   makeRockMaterial,
   makeShardMaterial,
   makeTerrainMaterial,
   makeTreeMaterial,
   rockGeometry,
+  rottenTreeGeometry,
   shardGeometry,
   treeGeometryDetailed,
-  treeGeometryFar,
+  treeGeometryIce,
 } from '../visuals/Materials'
 import { smootherstep01 } from '../utils/math'
 
@@ -40,6 +53,24 @@ const dummy = new THREE.Object3D()
 const tint = new THREE.Color()
 
 const FADE_SECONDS = 0.9
+
+/** Geometria da árvore "normal" e cor da silhueta distante, por bioma. */
+const BIOME_TREE_GEO: Record<number, THREE.BufferGeometry> = {
+  0: treeGeometryDetailed,
+  [BIOME_DESERT]: cactusGeometry,
+  [BIOME_ICE]: treeGeometryIce,
+}
+const BIOME_FAR_HEX: Record<number, number> = {
+  0: 0x2f6d5c,
+  [BIOME_DESERT]: 0x4f8a5c,
+  [BIOME_ICE]: 0xd8e6ef,
+}
+/** Tom da grama por bioma (multiplica as cores por vértice das lâminas). */
+const BIOME_GRASS_TINT: Record<number, string> = {
+  0: '#ffffff',
+  [BIOME_DESERT]: '#d8bc6e',
+  [BIOME_ICE]: '#bcd8d4',
+}
 
 interface TerrainChunkProps {
   payload: ChunkPayload
@@ -75,11 +106,16 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
   const ring = chunkDistance(payload.cx, payload.cz, playerChunk.cx, playerChunk.cz)
 
   const treesRef = useRef<THREE.InstancedMesh>(null)
+  const rottenRef = useRef<THREE.InstancedMesh>(null)
+  const fruitsRef = useRef<THREE.InstancedMesh>(null)
   const rocksRef = useRef<THREE.InstancedMesh>(null)
   const grassRef = useRef<THREE.InstancedMesh>(null)
   const fade = useRef(instantFade ? 1 : 0)
 
   const treeCount = Math.floor(payload.trees.length / TREE_STRIDE)
+  const rottenCount = Math.floor(payload.rotten.length / TREE_STRIDE)
+  const fruitCount = Math.floor(payload.fruits.length / TREE_STRIDE)
+  const lightCount = Math.floor(payload.lights.length / TREE_STRIDE)
   const rockCount = Math.floor(payload.rocks.length / ROCK_STRIDE)
   const grassCount = Math.floor(payload.grass.length / GRASS_STRIDE)
   const shardCount = Math.floor(payload.shards.length / SHARD_STRIDE)
@@ -101,16 +137,23 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
   }, [payload])
 
   const materials = useMemo(() => {
+    const grassMat = makeGrassMaterial()
+    grassMat.color.set(BIOME_GRASS_TINT[payload.biomeId] ?? '#ffffff')
     const set = {
       terrain: makeTerrainMaterial(),
       tree: makeTreeMaterial(),
+      rotten: makeTreeMaterial(),
+      fruit: makeTreeMaterial(),
       rock: makeRockMaterial(),
-      grass: makeGrassMaterial(),
+      grass: grassMat,
       shard: makeShardMaterial(),
+      lightCanopy: makeLightTreeCanopyMaterial(),
+      aura: makeAuraMaterial(),
     }
     // Estado inicial do fade definido UMA vez — re-renders não resetam opacidade.
     const startOpacity = fade.current >= 1 ? 1 : 0
     for (const mat of Object.values(set)) {
+      if (mat === set.aura) continue
       mat.opacity = startOpacity
       mat.transparent = fade.current < 1
     }
@@ -129,12 +172,18 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
 
   useLayoutEffect(() => {
     fillInstances(treesRef.current, payload.trees, TREE_STRIDE, 1)
+    fillInstances(rottenRef.current, payload.rotten, TREE_STRIDE, 1)
+    fillInstances(fruitsRef.current, payload.fruits, TREE_STRIDE, 1)
     fillInstances(rocksRef.current, payload.rocks, ROCK_STRIDE, 1)
     fillInstances(grassRef.current, payload.grass, GRASS_STRIDE, 1.25)
   }, [payload])
 
-  // LOD de árvores: geometria detalhada perto, cone-silhueta longe.
-  const treeGeo = ring <= TREE_DETAIL_RADIUS ? treeGeometryDetailed : treeGeometryFar
+  // LOD de árvores: geometria detalhada do bioma perto, cone-silhueta longe.
+  const nearGeo = BIOME_TREE_GEO[payload.biomeId] ?? treeGeometryDetailed
+  const treeGeo =
+    ring <= TREE_DETAIL_RADIUS
+      ? nearGeo
+      : getFarTreeGeometry(BIOME_FAR_HEX[payload.biomeId] ?? 0x2f6d5c)
   useLayoutEffect(() => {
     if (treesRef.current) treesRef.current.geometry = treeGeo
   }, [treeGeo])
@@ -145,13 +194,22 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
     fade.current = Math.min(1, fade.current + dt / FADE_SECONDS)
     const eased = smootherstep01(fade.current)
     const done = fade.current >= 1
-    for (const mat of [materials.terrain, materials.tree, materials.rock, materials.grass]) {
+    for (const mat of [
+      materials.terrain,
+      materials.tree,
+      materials.rotten,
+      materials.fruit,
+      materials.rock,
+      materials.grass,
+      materials.lightCanopy,
+    ]) {
       mat.opacity = eased
       mat.transparent = !done
     }
     materials.shard.opacity = eased
     materials.shard.transparent = !done
     materials.shard.emissiveIntensity = 3.2 * eased
+    materials.lightCanopy.emissiveIntensity = 2.6 * eased
   })
 
   return (
@@ -162,6 +220,26 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
         <instancedMesh
           ref={treesRef}
           args={[treeGeo, materials.tree, treeCount]}
+          castShadow={ring <= 1}
+          receiveShadow
+          frustumCulled={false}
+        />
+      )}
+
+      {rottenCount > 0 && (
+        <instancedMesh
+          ref={rottenRef}
+          args={[rottenTreeGeometry, materials.rotten, rottenCount]}
+          castShadow={ring <= 1}
+          receiveShadow
+          frustumCulled={false}
+        />
+      )}
+
+      {fruitCount > 0 && (
+        <instancedMesh
+          ref={fruitsRef}
+          args={[fruitTreeGeometry, materials.fruit, fruitCount]}
           castShadow={ring <= 1}
           receiveShadow
           frustumCulled={false}
@@ -186,6 +264,26 @@ export function TerrainChunk({ payload, instantFade }: TerrainChunkProps) {
           frustumCulled={false}
         />
       )}
+
+      {/* Árvores de luz — raríssimas, com aura brilhante e luz própria. */}
+      {lightCount > 0 &&
+        Array.from({ length: lightCount }, (_, i) => {
+          const o = i * TREE_STRIDE
+          const x = payload.lights[o]
+          const y = payload.lights[o + 1]
+          const z = payload.lights[o + 2]
+          const s = payload.lights[o + 3]
+          return (
+            <group key={`lt${i}`} position={[x, y, z]} scale={s}>
+              <mesh geometry={lightTreeTrunkGeometry} material={materials.tree} castShadow />
+              <mesh geometry={lightTreeCanopyGeometry} material={materials.lightCanopy} />
+              <mesh material={materials.aura} position={[0, 3.1, 0]}>
+                <sphereGeometry args={[2.6, 16, 12]} />
+              </mesh>
+              <pointLight color="#ffdf9e" intensity={26} distance={34} decay={2} position={[0, 3.1, 0]} />
+            </group>
+          )
+        })}
 
       {shardCount > 0 &&
         Array.from({ length: shardCount }, (_, i) => {

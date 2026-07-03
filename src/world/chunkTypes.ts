@@ -34,6 +34,18 @@ export const ROCK_STRIDE = 6 // x, y, z, escala, rotY, tint
 export const GRASS_STRIDE = 5 // x, y, z, escala, fase
 export const SHARD_STRIDE = 4 // x, y, z, escala
 
+/**
+ * Raridade das árvores especiais (sorteio determinístico por árvore):
+ * a cada ~10 normais surge 1 podre, a cada ~1.000 uma frutífera e a cada
+ * ~1.000.000 uma árvore de luz com aura brilhando.
+ */
+export const LIGHT_TREE_CHANCE = 1 / 1_000_000
+export const FRUIT_TREE_CHANCE = 1 / 1_000
+export const ROTTEN_TREE_CHANCE = 1 / 10
+
+/** Chance de um chunk abrigar um cachorro (≈ 1 cão a cada ~74k m²). */
+export const DOG_CHUNK_CHANCE = 0.12
+
 export interface ChunkRequestMessage {
   type: 'generate'
   seed: number
@@ -50,10 +62,19 @@ export interface ChunkPayload {
   normals: Float32Array
   /** Cores por vértice (linear RGB). */
   colors: Float32Array
+  /** Árvores normais do bioma (conífera / cacto / pinheiro nevado). */
   trees: Float32Array
+  /** Árvores podres (~1 a cada 10). */
+  rotten: Float32Array
+  /** Árvores frutíferas (~1 a cada 1.000). */
+  fruits: Float32Array
+  /** Árvores de luz (~1 a cada 1.000.000) — com aura. */
+  lights: Float32Array
   rocks: Float32Array
   grass: Float32Array
   shards: Float32Array
+  /** Macro-bioma dominante no centro do chunk (0 campos, 1 deserto, 2 gelo). */
+  biomeId: number
   minY: number
   maxY: number
 }
