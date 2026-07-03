@@ -28,6 +28,11 @@ export const playerState = {
   walkPhase: 0,
 }
 
+// Inspeção via console/Playwright durante o desenvolvimento.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__playerState = playerState
+}
+
 const KEY_MAP: Record<string, keyof typeof input> = {
   KeyW: 'forward',
   ArrowUp: 'forward',
