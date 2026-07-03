@@ -15,8 +15,8 @@
  * - jump cut: soltar Espaço na subida encurta o pulo (altura variável)
  * - coyote time + jump buffering (Celeste / Maddy Thorson)
  * - velocidade terminal de queda
- * - slope limit ~50°: rampas íngremes não são escaláveis e deslizam
- * - ground snapping: descer rampas correndo não vira "queda"
+ * - slope limit com transição suave 45°→56°: rampas íngremes não são
+ *   escaláveis e deslizam (sem liga/desliga no limiar)
  * - squash no pouso + passos/pulo/pouso sonoros procedurais
  */
 import { useEffect, useMemo, useRef } from 'react'
@@ -28,7 +28,7 @@ import { CoefficientCombineRule } from '@dimforge/rapier3d-compat'
 import { useExperienceStore } from '../state/useExperienceStore'
 import { sfxController } from '../audio/SfxController'
 import { getTerrainSampler } from '../world/noise'
-import { clamp, dampFactor, lerp } from '../utils/math'
+import { clamp, dampFactor, lerp, smoothstep } from '../utils/math'
 import { bindPlayerInput, input, playerState } from './PlayerController'
 import { cameraRig } from './cameraRig'
 import { WindCloth } from './WindCloth'
@@ -58,13 +58,22 @@ const TERMINAL_FALL_SPEED = -38
 const COYOTE_TIME = 0.12
 /** Apertar pulo até isto antes de pousar ainda dispara no pouso. */
 const JUMP_BUFFER_TIME = 0.12
-/** cos(~50°): normais mais deitadas que isso são rampa intransponível. */
-const MAX_SLOPE_NORMAL_Y = 0.64
-/** Aceleração de deslize ladeira abaixo em rampas intransponíveis. */
-const STEEP_SLIDE_ACCEL = 26
-/** Até esta folga do chão, descidas "colam" o corpo no terreno. */
-const GROUND_SNAP_GAP = 0.6
-const GROUND_SNAP_PULL = -8
+/**
+ * Folga pés→chão que ainda conta como contato. Em rampas a cápsula apoia
+ * na borda dos triângulos e o centro fica até ~0.5 acima da altura analítica
+ * — um limiar apertado (0.22) fazia o estado "no chão" piscar ao andar em
+ * qualquer ladeira.
+ */
+const CONTACT_GAP = 0.42
+/** Acima desta folga o player está claramente no ar (gravidade extra vale). */
+const AIRBORNE_GAP = 0.5
+/** Normal.y onde o deslize de rampa começa a atuar (~45°)… */
+const STEEP_NORMAL_Y_START = 0.7
+/** …e onde é rampa totalmente intransponível (~56°): sem pulo, deslize máximo.
+ * A transição SUAVE entre os dois evita o liga/desliga (tremedeira) no limiar. */
+const STEEP_NORMAL_Y_FULL = 0.56
+/** Aceleração máxima de deslize ladeira abaixo em rampas intransponíveis. */
+const STEEP_SLIDE_ACCEL = 16
 
 /** Modelo KayKit é game-ready: pés no origin. Pequeno diante do mundo imenso. */
 const MODEL_SCALE = 0.9
@@ -209,11 +218,15 @@ export function Player() {
       const groundH = sampler.height(t.x, t.z)
       const feetY = t.y - FEET_OFFSET
       const gap = feetY - groundH
-      const contact = gap < 0.22 && lv.y <= 0.5
-      // Slope limit: rampas mais íngremes que ~50° não são apoio válido —
-      // não dá para pular delas e o corpo desliza ladeira abaixo.
+      // lv.y sobe até ~3 correndo morro acima (o solver empurra a cápsula
+      // ao longo da rampa) — isso ainda é "no chão", não um pulo.
+      const contact = gap < CONTACT_GAP && lv.y <= 3
+      const airborne = gap > AIRBORNE_GAP
+      // Slope limit com transição SUAVE: 0 em ≤45°, 1 em ≥56°. Binário no
+      // limiar fazia o estado oscilar e o boneco tremer ladeira acima/abaixo.
       const [nX, nY, nZ] = sampler.normal(t.x, t.z, groundNormal.current)
-      const tooSteep = nY < MAX_SLOPE_NORMAL_Y
+      const steep = 1 - smoothstep(STEEP_NORMAL_Y_FULL, STEEP_NORMAL_Y_START, nY)
+      const tooSteep = nY < STEEP_NORMAL_Y_FULL
       const grounded = contact && !tooSteep
 
       if (phase === 'playing' && !paused) {
@@ -239,15 +252,16 @@ export function Player() {
           dz /= len
         }
 
-        // Rampa intransponível: remove a componente de subida do input.
+        // Rampa íngreme: atenua a componente de subida do input (proporcional
+        // ao quão íngreme — nunca um corte binário).
         const nH = Math.hypot(nX, nZ)
-        if (tooSteep && gap < 0.6 && nH > 1e-4 && (dx !== 0 || dz !== 0)) {
+        if (steep > 0 && gap < 0.6 && nH > 1e-4 && (dx !== 0 || dz !== 0)) {
           const upX = -nX / nH
           const upZ = -nZ / nH
           const climb = dx * upX + dz * upZ
           if (climb > 0) {
-            dx -= upX * climb
-            dz -= upZ * climb
+            dx -= upX * climb * steep
+            dz -= upZ * climb * steep
           }
         }
 
@@ -258,12 +272,25 @@ export function Player() {
         let vz = lerp(lv.z, dz * targetSpeed, k)
         let vy = lv.y
 
-        // Gravidade assimétrica ("Building a Better Jump", GDC 2016):
-        // a queda é mais pesada que a subida, e soltar o Espaço na subida
-        // encurta o pulo (altura variável).
-        if (!contact) {
+        // Parado no chão sem input: zera o resíduo horizontal de uma vez.
+        // A cápsula sem atrito escorrega em qualquer inclinação (o solver
+        // converte gravidade em deslize tangencial a cada passo) e atinge
+        // equilíbrio de até ~1.4 m/s contra o damping — o boneco "andava
+        // sozinho" ladeira abaixo para sempre. O freio suave leva a corrida
+        // até 2.5 m/s; daí o corte para 0 é imperceptível.
+        if (f === 0 && r === 0 && grounded && Math.hypot(vx, vz) < 2.5) {
+          vx = 0
+          vz = 0
+        }
+
+        // Gravidade assimétrica ("Building a Better Jump", GDC 2016), SÓ
+        // quando claramente no ar: perto do chão o solver gera vy positivo
+        // ao subir ladeiras e a gravidade extra brigava com ele (tremedeira
+        // + arrasto morro abaixo). O jump cut só vale logo após um pulo.
+        if (airborne) {
           if (vy < 0) vy += FALL_GRAVITY_BONUS * dt
-          else if (!input.jump) vy += LOW_JUMP_GRAVITY_BONUS * dt
+          else if (!input.jump && timeSinceJump.current < 0.45)
+            vy += LOW_JUMP_GRAVITY_BONUS * dt
         }
 
         if (contact) {
@@ -291,23 +318,12 @@ export function Player() {
           glideEnergy.current -= dt
         }
 
-        // Deslize ladeira abaixo quando apoiado numa rampa intransponível.
-        if (tooSteep && gap < 0.5 && nH > 1e-4) {
-          vx += (nX / nH) * STEEP_SLIDE_ACCEL * dt
-          vz += (nZ / nH) * STEEP_SLIDE_ACCEL * dt
-        }
-
-        // Ground snapping: ao descer rampas o corpo cola no terreno em vez
-        // de alternar para "queda" a cada crista — só logo após perder o
-        // apoio e nunca depois de um pulo.
-        if (
-          !contact &&
-          vy <= 0.5 &&
-          gap < GROUND_SNAP_GAP &&
-          coyoteTimer.current < 0.25 &&
-          timeSinceJump.current > 0.4
-        ) {
-          vy = Math.min(vy, GROUND_SNAP_PULL)
+        // Deslize ladeira abaixo proporcional à inclinação da rampa.
+        // (Nunca um puxão vertical contra o chão: esmagar a cápsula sem
+        // atrito no trimesh vira deslize horizontal e o boneco "anda sozinho".)
+        if (steep > 0.01 && gap < 0.5 && nH > 1e-4) {
+          vx += (nX / nH) * STEEP_SLIDE_ACCEL * steep * dt
+          vz += (nZ / nH) * STEEP_SLIDE_ACCEL * steep * dt
         }
 
         // Velocidade terminal: queda legível, sem risco de tunneling.

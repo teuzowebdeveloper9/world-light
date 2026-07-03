@@ -47,6 +47,11 @@ interface ExperienceState {
   setPlayerChunk: (cx: number, cz: number) => void
 }
 
+// Inspeção via console/Playwright durante o desenvolvimento.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__spawnBiome = spawnPoint.biome
+}
+
 export const useExperienceStore = create<ExperienceState>((set) => ({
   phase: 'gate',
   paused: false,

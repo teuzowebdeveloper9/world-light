@@ -12,6 +12,17 @@ screen instead.
 Stack: Vite · React 19 · TypeScript · Three.js · @react-three/fiber · drei ·
 rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 
+## Screenshots
+
+|  |  |
+| --- | --- |
+| ![Title screen](docs/screenshots/01-title.png) | ![Meadows at dawn, pine trees and a winding trail](docs/screenshots/02-world.png) |
+| ![Running along a trail between the hills](docs/screenshots/03-running.png) | ![The mage jumping over the trail](docs/screenshots/04-glide.png) |
+
+> Captured automatically with **Playwright**: `npm run screenshots` spins up
+> the dev server, drives a real gameplay session in headless Chrome (WebGL
+> via SwiftShader) and saves the PNGs to `docs/screenshots/`.
+
 ## Asset credits
 
 - **Mage** — from **[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)**,
@@ -39,6 +50,14 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
   weight). Holding `Space` while falling makes the mage **glide** (fall
   capped at -2.2) for up to ~5s of "energy", which recharges on landing.
   Gravity always wins: there is no free flight.
+- **Game feel (industry-standard algorithms)** — fixed physics timestep
+  (jump height never depends on the frame rate), asymmetric gravity (falls
+  faster than it rises), variable jump height (release `Space` mid-rise to
+  cut the jump), **coyote time** and **jump buffering** (0.12s each),
+  terminal fall velocity, slope limit with smooth 45°→56° transition (steep
+  walls can't be climbed and slide the player down), landing
+  squash-and-stretch, and procedural WebAudio sound effects (footsteps
+  synced to the walk cycle, jump, landing — zero audio assets).
 - **Guaranteed ground** — grounded detection is *analytical*: the same math
   function that generates the terrain is sampled at the player's position.
   Even if a collider hasn't mounted yet, the player can never fall through
@@ -50,8 +69,9 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
   ring, animated with sines + global wind gusts; the hem lifts and trails
   when running. No expensive cloth simulation.
 - **Camera** — low third-person camera (the world feels huge), orbit with
-  `Q`/`E` or mouse drag, a cinematic diving entrance, and the camera never
-  clips into the terrain.
+  `Q`/`E` or mouse drag (horizontal **and vertical**, with pitch clamp), a
+  subtle FOV kick while sprinting, a cinematic diving entrance, and the
+  camera never clips into the terrain.
 - **Infinite world** — deterministic chunks generated in a Web Worker using
   the 60% rule (details below).
 - **Biomes** — three macro-regions driven by a continental temperature noise:
@@ -199,9 +219,11 @@ src/
   player/        player physics, camera, wind cloak, input
   visuals/       sun, sky, particles, materials, post-processing
   physics/       Rapier world + terrain collider
-  audio/         looping music with fades
+  audio/         looping music with fades + procedural WebAudio SFX
   state/         Zustand store
   utils/         math, device, dispose
+scripts/
+  screenshots.mjs  Playwright session that captures the README screenshots
 public/
   audio/rain-lofi.mp3      (not versioned — see the Audio section)
   models/character.glb     ← KayKit Adventurers (Mage), CC0 license
