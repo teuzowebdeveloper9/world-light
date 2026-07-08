@@ -1,7 +1,8 @@
 /**
  * Personagem em terceira pessoa:
- * - Modelo 3D real (KayKit Adventurers — Mago, licença CC0) com pernas,
- *   rigged e animado: Idle / Walking / Running / Jump com crossfade suave
+ * - Modelo 3D real (figura encapuzada, malha estática sem rig — sem
+ *   animações de Idle/Walk/Run/Jump; o rosto é uma região emissiva que
+ *   brilha sozinha, ver blender/hooded_sun_figure_realistic.py)
  * - RigidBody dinâmico com rotações travadas + capsule collider
  * - grounded detection ANALÍTICO (amostra a mesma função de altura do terreno)
  * - clamp de segurança: mesmo que um collider ainda não exista, o player
@@ -22,7 +23,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useAnimations, useGLTF } from '@react-three/drei'
+import { useGLTF } from '@react-three/drei'
 import { CapsuleCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier'
 import { CoefficientCombineRule } from '@dimforge/rapier3d-compat'
 import { useExperienceStore } from '../state/useExperienceStore'
@@ -31,9 +32,8 @@ import { getTerrainSampler } from '../world/noise'
 import { clamp, dampFactor, lerp, smoothstep } from '../utils/math'
 import { bindPlayerInput, input, playerState } from './PlayerController'
 import { cameraRig } from './cameraRig'
-import { WindCloth } from './WindCloth'
 
-const MODEL_URL = `${import.meta.env.BASE_URL}models/character.glb`
+const MODEL_URL = `${import.meta.env.BASE_URL}models/hooded-figure.glb`
 useGLTF.preload(MODEL_URL)
 
 const CAPSULE_HALF = 0.45
@@ -75,79 +75,27 @@ const STEEP_NORMAL_Y_FULL = 0.56
 /** Aceleração máxima de deslize ladeira abaixo em rampas intransponíveis. */
 const STEEP_SLIDE_ACCEL = 16
 
-/** Modelo KayKit é game-ready: pés no origin. Pequeno diante do mundo imenso. */
-const MODEL_SCALE = 0.9
-/**
- * Acessórios escondidos (o GLB vem com todos visíveis ao mesmo tempo).
- * A Mage_Cape original é pequena — usamos a nossa capa grande ao vento.
- */
-const HIDDEN_ACCESSORIES = ['Spellbook', 'Spellbook_open', '1H_Wand', 'Mage_Cape']
-
-
-type AnimName = 'Idle' | 'Walking_A' | 'Running_A' | 'Jump_Idle'
+/** Modelo já exportado game-ready (pés em Y=0, altura ~1.45 — ver blender/export_game_character.py). */
+const MODEL_SCALE = 1
 
 function CharacterModel() {
   const group = useRef<THREE.Group>(null)
-  const { scene, animations } = useGLTF(MODEL_URL)
-  const { actions } = useAnimations(animations, group)
-  const current = useRef<AnimName | ''>('')
+  const { scene } = useGLTF(MODEL_URL)
 
   useEffect(() => {
     scene.scale.setScalar(MODEL_SCALE)
     scene.position.set(0, 0, 0)
     scene.traverse((obj) => {
-      if (HIDDEN_ACCESSORIES.includes(obj.name)) obj.visible = false
       if ((obj as THREE.Mesh).isMesh) {
         obj.castShadow = true
         obj.receiveShadow = false
-        // Skinned meshes têm bounds instáveis — nunca deixar o culling piscar.
-        obj.frustumCulled = false
       }
     })
   }, [scene])
 
-  useFrame(() => {
-    const hSpeed = Math.hypot(playerState.velocity.x, playerState.velocity.z)
-    let target: AnimName
-    if (!playerState.grounded) {
-      target = 'Jump_Idle'
-    } else if (hSpeed > 6.5) {
-      target = 'Running_A'
-    } else if (hSpeed > 0.5) {
-      target = 'Walking_A'
-    } else {
-      target = 'Idle'
-    }
-
-    if (target !== current.current) {
-      const next = actions[target]
-      const prev = current.current ? actions[current.current] : null
-      if (next) {
-        next.reset().fadeIn(0.22).play()
-        prev?.fadeOut(0.22)
-        current.current = target
-      }
-    }
-
-    // Cadência dos passos acompanha a velocidade real.
-    const active = current.current ? actions[current.current] : null
-    if (active) {
-      if (current.current === 'Walking_A') {
-        active.timeScale = clamp(hSpeed / 3.6, 0.75, 1.6)
-      } else if (current.current === 'Running_A') {
-        active.timeScale = clamp(hSpeed / 8.5, 0.85, 1.35)
-      } else {
-        active.timeScale = 1
-      }
-    }
-  })
-
-  // Capa grande e fluida presa nos ombros, animada pelo vento global
-  // e pela velocidade do player.
   return (
     <group ref={group}>
       <primitive object={scene} />
-      <WindCloth />
     </group>
   )
 }

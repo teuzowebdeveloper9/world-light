@@ -25,11 +25,12 @@ rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 
 ## Asset credits
 
-- **Mage** — from **[KayKit — Character Pack: Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)**,
-  created by **[Kay Lousberg](https://kaylousberg.com)** ([itch.io](https://kaylousberg.itch.io/kaykit-adventurers)).
-  Licensed **CC0**. Original license at `public/models/CHARACTER_LICENSE.txt`.
-  The rig and animations (Idle, Walk, Run, Jump…) also come from the pack.
-  Thank you, Kay! 💛
+- **Hooded figure** — the playable character: a static (unrigged) sculpted
+  mesh with a small emissive region standing in for a face — a "sun" that
+  glows from inside the hood, never a visible face. Built procedurally in
+  Blender from a base model; see `blender/hooded_sun_figure_realistic.py`
+  and `blender/export_game_character.py` for the full generation +
+  game-export pipeline.
 - **Dogs (Husky & Shiba Inu)** — from **LowPoly Animated Animals** by
   **[Quaternius](https://quaternius.com)** ([poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS)).
   Licensed **CC0**. Thank you, Quaternius! 🐕
@@ -47,7 +48,7 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
   never "hold" the player). `Shift` runs (5.5 → 11 u/s) with smoothed
   acceleration and reduced control while airborne.
 - **Jump & glide** — `Space` jumps with strong gravity (-24, a jump with
-  weight). Holding `Space` while falling makes the mage **glide** (fall
+  weight). Holding `Space` while falling makes the character **glide** (fall
   capped at -2.2) for up to ~5s of "energy", which recharges on landing.
   Gravity always wins: there is no free flight.
 - **Game feel (industry-standard algorithms)** — fixed physics timestep
@@ -63,11 +64,9 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
   Even if a collider hasn't mounted yet, the player can never fall through
   the world. On slopes, the visual model is pulled down to the real terrain
   height (snap), so the feet always touch the ground.
-- **Animations** — automatic crossfade between Idle/Walk/Run/Jump based on
-  the physics state; step cadence follows the actual speed.
-- **Wind cloak** — a parametric half-cylinder (~220°) pinned at the shoulder
-  ring, animated with sines + global wind gusts; the hem lifts and trails
-  when running. No expensive cloth simulation.
+- **Character** — a static sculpted mesh (no rig/animations); footstep
+  cadence and SFX still follow the actual physics speed, only the visual
+  crossfade between poses is gone since the model has none to blend.
 - **Camera** — low third-person camera (the world feels huge), orbit with
   `Q`/`E` or mouse drag (horizontal **and vertical**, with pitch clamp), a
   subtle FOV kick while sprinting, a cinematic diving entrance, and the
@@ -216,7 +215,7 @@ src/
   experience/    desktop-only gate, start screen, HUD, Canvas
   world/         chunks: manager, terrain, noise, biome, spawner
   workers/       chunkWorker (generation) + priority-queue client
-  player/        player physics, camera, wind cloak, input
+  player/        player physics, camera, input
   visuals/       sun, sky, particles, materials, post-processing
   physics/       Rapier world + terrain collider
   audio/         looping music with fades + procedural WebAudio SFX
@@ -224,14 +223,16 @@ src/
   utils/         math, device, dispose
 scripts/
   screenshots.mjs  Playwright session that captures the README screenshots
+blender/
+  hooded_sun_figure_realistic.py  glow-face treatment on the base character mesh
+  export_game_character.py       decimates + scales + exports public/models/hooded-figure.glb
 public/
   audio/rain-lofi.mp3      (not versioned — see the Audio section)
-  models/character.glb     ← KayKit Adventurers (Mage), CC0 license
+  models/hooded-figure.glb ← playable character, exported from blender/export_game_character.py
 ```
 
 ## Next steps for the visuals
 
-- Real Verlet cloth simulation for the cloak (distance constraints)
 - Light volumetric clouds (cheap raymarch on a horizon quad)
 - Water: low-poly lakes reflecting the sun in valleys between mountains
 - Fireflies/night lights + a slow day/night cycle

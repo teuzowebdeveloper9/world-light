@@ -32,9 +32,6 @@ github.com/teuzowebdeveloper9.
 Third-party assets bundled with this project keep their own (more permissive)
 licenses and are NOT covered by the restrictions above:
 
-- Character "Mage" — KayKit Character Pack: Adventurers, by Kay Lousberg
-  (kaylousberg.com) — **CC0**. License copy at
-  `public/models/CHARACTER_LICENSE.txt`.
 - Dogs "Husky" and "Shiba Inu" — LowPoly Animated Animals, by Quaternius
   (quaternius.com) — **CC0**.
 - The soundtrack is NOT distributed with this repository.
