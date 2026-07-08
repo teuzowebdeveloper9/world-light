@@ -78,9 +78,15 @@ const STEEP_SLIDE_ACCEL = 16
 /** Modelo já exportado game-ready (pés em Y=0, altura ~1.45 — ver blender/export_game_character.py). */
 const MODEL_SCALE = 1
 
+/** Bob vertical no pico da passada (unidades de mundo). */
+const WALK_BOB_HEIGHT = 0.06
+/** Balanço lateral (rad) — o manto pesado embala de um lado pro outro. */
+const WALK_SWAY = 0.05
+
 function CharacterModel() {
   const group = useRef<THREE.Group>(null)
   const { scene } = useGLTF(MODEL_URL)
+  const walkBlend = useRef(0)
 
   useEffect(() => {
     scene.scale.setScalar(MODEL_SCALE)
@@ -92,6 +98,18 @@ function CharacterModel() {
       }
     })
   }, [scene])
+
+  // Sem rig/animação real: simula a passada com bob + balanço procedurais na
+  // mesma fase (playerState.walkPhase) que já sincroniza o som dos passos —
+  // o baque do som cai exatamente no fundo do bob (pé "tocando" o chão).
+  useFrame((_, dt) => {
+    if (!group.current) return
+    const target = playerState.grounded ? playerState.speedFactor : 0
+    walkBlend.current = lerp(walkBlend.current, target, dampFactor(8, dt))
+    const phase = playerState.walkPhase
+    group.current.position.y = Math.abs(Math.sin(phase)) * WALK_BOB_HEIGHT * walkBlend.current
+    group.current.rotation.z = Math.sin(phase) * WALK_SWAY * walkBlend.current
+  })
 
   return (
     <group ref={group}>
