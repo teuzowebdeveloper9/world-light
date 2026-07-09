@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useGLTF } from '@react-three/drei'
+import { useAnimations, useGLTF } from '@react-three/drei'
 import { CapsuleCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier'
 import { CoefficientCombineRule } from '@dimforge/rapier3d-compat'
 import { useExperienceStore } from '../state/useExperienceStore'
@@ -78,15 +78,11 @@ const STEEP_SLIDE_ACCEL = 16
 /** Modelo já exportado game-ready (pés em Y=0, altura ~1.45 — ver blender/export_game_character.py). */
 const MODEL_SCALE = 1
 
-/** Bob vertical no pico da passada (unidades de mundo). */
-const WALK_BOB_HEIGHT = 0.06
-/** Balanço lateral (rad) — o manto pesado embala de um lado pro outro. */
-const WALK_SWAY = 0.05
-
 function CharacterModel() {
   const group = useRef<THREE.Group>(null)
-  const { scene } = useGLTF(MODEL_URL)
-  const walkBlend = useRef(0)
+  const { scene, animations } = useGLTF(MODEL_URL)
+  const { actions } = useAnimations(animations, group)
+  const walking = useRef(false)
 
   useEffect(() => {
     scene.scale.setScalar(MODEL_SCALE)
@@ -99,16 +95,25 @@ function CharacterModel() {
     })
   }, [scene])
 
-  // Sem rig/animação real: simula a passada com bob + balanço procedurais na
-  // mesma fase (playerState.walkPhase) que já sincroniza o som dos passos —
-  // o baque do som cai exatamente no fundo do bob (pé "tocando" o chão).
-  useFrame((_, dt) => {
-    if (!group.current) return
-    const target = playerState.grounded ? playerState.speedFactor : 0
-    walkBlend.current = lerp(walkBlend.current, target, dampFactor(8, dt))
-    const phase = playerState.walkPhase
-    group.current.position.y = Math.abs(Math.sin(phase)) * WALK_BOB_HEIGHT * walkBlend.current
-    group.current.rotation.z = Math.sin(phase) * WALK_SWAY * walkBlend.current
+  // Sem rig de verdade: a única action ("Walk", bob + balanço) foi keyframada
+  // direto no transform do objeto em blender/export_game_character.py. Parada
+  // ou no ar ela dá fadeOut e a malha estática volta sozinha ao bind pose.
+  useFrame(() => {
+    const walk = actions.Walk
+    if (!walk) return
+    const hSpeed = Math.hypot(playerState.velocity.x, playerState.velocity.z)
+    const shouldWalk = playerState.grounded && hSpeed > 0.5
+
+    if (shouldWalk && !walking.current) {
+      walk.reset().fadeIn(0.15).play()
+      walking.current = true
+    } else if (!shouldWalk && walking.current) {
+      walk.fadeOut(0.2)
+      walking.current = false
+    }
+    if (shouldWalk) {
+      walk.timeScale = clamp(hSpeed / WALK_SPEED, 0.6, 2.2)
+    }
   })
 
   return (

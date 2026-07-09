@@ -92,6 +92,67 @@ def make_game_ready(obj):
     print("bbox z apos ajuste:", min(zs2), max(zs2))
 
 
+WALK_BOB_HEIGHT = 0.06
+WALK_SWAY = 0.05
+WALK_CYCLE_FRAMES = 20
+"""
+Sem esqueleto: anima o transform do próprio objeto (bob vertical + balanço
+lateral), exportado como translation/rotation do node glTF — three.js toca
+isso com o AnimationMixer normal, igual animaria um rig de verdade.
+
+Eixo do balanço: X local do Blender é o eixo frente-trás deste modelo
+(descoberto olhando a vista "Right Orthographic" no hooded_sun_figure_realistic.py
+— foi lá que apareceu de frente). Rotacionar em torno dele é o "rolar"
+ombro-esquerdo/ombro-direito de quem anda, não um aceno pra frente/trás.
+"""
+
+
+def _set_fcurve(action, obj, data_path, index, frames_values):
+    # Blender 4.4+: Actions são "layered" (layers/strips/slots) — fcurves não
+    # se criam mais direto via action.fcurves.new(). Este helper cuida de
+    # criar layer/strip/slot e associar a action ao objeto sozinho.
+    fcurve = action.fcurve_ensure_for_datablock(obj, data_path, index=index)
+    for frame, value in frames_values:
+        kp = fcurve.keyframe_points.insert(frame, value)
+        kp.interpolation = "SINE"
+    fcurve.update()
+    return fcurve
+
+
+def add_walk_cycle(obj, fps=30):
+    """
+    Só a action "Walk" — sem clipe de Idle: uma action com fcurves que não
+    mudam de valor (0 -> 0) é podada pelo exportador glTF (ele detecta que
+    não anima nada de verdade e descarta a animação inteira). Parado, o
+    Player.tsx simplesmente não toca nenhuma action — a malha estática já
+    fica parada sozinha.
+    """
+    bpy.context.scene.render.fps = fps
+    # transform_apply() em make_game_ready() muda o modo pra QUATERNION —
+    # sem isso, as keyframes em rotation_euler ficam inertes (não é a
+    # representação de rotação ativa) e o exportador as ignora.
+    obj.rotation_mode = "XYZ"
+    obj.animation_data_create()
+
+    walk = bpy.data.actions.new("Walk")
+    obj.animation_data.action = walk
+    n = WALK_CYCLE_FRAMES
+    quarter = n / 4
+    # abs(sin(fase)) pro bob (dois baques por ciclo, um por passada) e
+    # sin(fase) puro pro balanço (alterna esquerda/direita a cada passo).
+    bob_frames = [(0, 0.0), (quarter, WALK_BOB_HEIGHT), (2 * quarter, 0.0), (3 * quarter, WALK_BOB_HEIGHT), (n, 0.0)]
+    sway_frames = [(0, 0.0), (quarter, WALK_SWAY), (2 * quarter, 0.0), (3 * quarter, -WALK_SWAY), (n, 0.0)]
+    _set_fcurve(walk, obj, "location", 2, bob_frames)
+    _set_fcurve(walk, obj, "rotation_euler", 0, sway_frames)
+
+    obj.animation_data.action = None
+    track = obj.animation_data.nla_tracks.new()
+    track.name = walk.name
+    track.strips.new(walk.name, 0, walk)
+
+    print("acoes criadas:", [a.name for a in bpy.data.actions])
+
+
 def export_glb(obj, filepath):
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
@@ -101,6 +162,8 @@ def export_glb(obj, filepath):
         export_format="GLB",
         use_selection=True,
         export_apply=True,
+        export_animation_mode="NLA_TRACKS",
+        export_nla_strips=False,
     )
 
 
@@ -109,6 +172,7 @@ def main():
     obj = import_and_decimate()
     make_face_glow(obj)
     make_game_ready(obj)
+    add_walk_cycle(obj)
     export_glb(obj, GLB_OUTPUT)
     print("EXPORTED_TO", GLB_OUTPUT)
 
