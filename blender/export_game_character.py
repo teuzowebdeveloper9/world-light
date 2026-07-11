@@ -44,6 +44,11 @@ FEET_X_RANGE = (-0.2, 0.2)
 FEET_Y_RANGE = (-0.10, 0.10)
 FEET_Z_RANGE = (-0.5, -0.35)
 
+# Capuz + cachecol/gola que sai dele (calibrado olhando
+# blender/renders/debug-hood-region.png, escala-fonte original) — tudo
+# acima desta altura balança junto como uma peça só.
+HOOD_Z_MIN = 0.15
+
 
 def clear_scene():
     for obj in list(bpy.data.objects):
@@ -152,6 +157,26 @@ def separate_feet(obj):
     return left_obj, right_obj
 
 
+def separate_hood(obj):
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    candidates = [f for f in bm.faces if f.calc_center_median().z >= HOOD_Z_MIN]
+
+    materials = list(mesh.materials)
+    hood_obj = _extract_faces(bm, candidates, "Hood", materials)
+
+    bmesh.ops.delete(bm, geom=candidates, context="FACES")
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+
+    print("capuz extraido:", len(candidates), "faces")
+    return hood_obj
+
+
 def make_game_ready(objects):
     """Pés (o ponto mais baixo entre TODOS os objetos) em Z=0, altura alvo.
 
@@ -168,6 +193,12 @@ def make_game_ready(objects):
     for o in objects:
         o.scale = (scale, scale, scale)
         o.location = (0.0, 0.0, z_offset)
+        # transform_apply() opera nos objetos SELECIONADOS, não no "ativo" —
+        # sem isolar a seleção aqui, só o 1º objeto do loop era realmente
+        # aplicado (os outros ficavam com o transform "pendurado", não
+        # assado na malha, e a exportação glTF saía com posições erradas).
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
         bpy.context.view_layer.objects.active = o
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
@@ -179,26 +210,46 @@ WALK_SWAY = 0.04
 WALK_STRIDE = 0.09
 WALK_LIFT = 0.035
 WALK_CYCLE_FRAMES = 20
+# Capuz/cachecol: tecido solto reagindo com inércia ao movimento do corpo —
+# atraso de fase + mais amplitude que o balanço do corpo ("follow-through",
+# um dos 12 princípios de animação: a parte solta sempre chega um instante
+# depois e ultrapassa um pouco).
+HOOD_PHASE_LAG = 0.35  # rad
+HOOD_BOB_MULT = 1.3
+HOOD_SWAY_MULT = 1.5
+HOOD_NOD = 0.05  # rad — leve balanço frente/trás (eixo Y), some no corpo/pés
 """
-Sem esqueleto: anima o transform dos 3 objetos (corpo + FootLeft +
-FootRight) diretamente, exportado como translation/rotation dos nós glTF —
-three.js toca isso com o AnimationMixer normal, igual animaria um rig.
+Sem esqueleto: anima o transform dos objetos (corpo + FootLeft + FootRight +
+Hood) diretamente, exportado como translation/rotation dos nós glTF — three.js
+toca isso com o AnimationMixer normal, igual animaria um rig.
 
 Eixo frente-trás deste modelo é o X local do Blender (descoberto olhando a
 vista "Right Orthographic" no hooded_sun_figure_realistic.py — foi lá que
-apareceu de frente). Passada: X oscila pra frente/trás, Z levanta o pé só
-na metade do ciclo em que ele está "no ar" (senão arrasta no chão). Pé
-direito com a MESMA fórmula defasada meia volta (π) — alternando como uma
-passada de verdade.
+apareceu de frente); Y é o eixo ombro-a-ombro. Passada: X oscila pra
+frente/trás, Z levanta o pé só na metade do ciclo em que ele está "no ar"
+(senão arrasta no chão). Pé direito com a MESMA fórmula defasada meia volta
+(π) — alternando como uma passada de verdade.
+
+Tudo amostrado nos mesmos 5 pontos de fase (phi = 0, pi/2, pi, 3pi/2, 2pi)
+via seno/cosseno de verdade — sem tuplas de sinal copiadas à mão (foi
+exatamente um erro de transcrição numa dessas que fez o pé levantar na
+fase errada da passada da primeira vez).
 """
 
 
-def _set_fcurve(action, obj, data_path, index, frames_values):
+def _phase_points(n):
+    quarter = n / 4
+    frames = (0, quarter, 2 * quarter, 3 * quarter, n)
+    phis = [k * math.pi / 2 for k in range(5)]
+    return frames, phis
+
+
+def _set_fcurve(action, obj, data_path, index, frames, values):
     # Blender 4.4+: Actions são "layered" (layers/strips/slots) — fcurves não
     # se criam mais direto via action.fcurves.new(). Este helper cuida de
     # criar layer/strip/slot e associar a action ao objeto sozinho.
     fcurve = action.fcurve_ensure_for_datablock(obj, data_path, index=index)
-    for frame, value in frames_values:
+    for frame, value in zip(frames, values):
         kp = fcurve.keyframe_points.insert(frame, value)
         kp.interpolation = "SINE"
     fcurve.update()
@@ -208,7 +259,7 @@ def _set_fcurve(action, obj, data_path, index, frames_values):
 def _push_action_to_nla(obj, action, clip_name="Walk"):
     # O nome da action no bpy.data.actions é único (Blender sufixa .001,
     # .002...) mas o exportador glTF agrupa por NOME DO TRACK/STRIP — usar
-    # sempre "Walk" aqui (em vez de action.name) é o que faz os 3 objetos
+    # sempre "Walk" aqui (em vez de action.name) é o que faz os objetos
     # virarem UM clipe glTF só, com um canal por nó.
     obj.animation_data.action = None
     track = obj.animation_data.nla_tracks.new()
@@ -216,7 +267,7 @@ def _push_action_to_nla(obj, action, clip_name="Walk"):
     track.strips.new(clip_name, 0, action)
 
 
-def add_walk_cycle(body, foot_left, foot_right, fps=30):
+def add_walk_cycle(body, hood, foot_left, foot_right, fps=30):
     """
     Só a action "Walk" em cada objeto — sem clipe de Idle: fcurves que não
     mudam de valor (0 -> 0) são podadas pelo exportador glTF (detecta que
@@ -224,43 +275,51 @@ def add_walk_cycle(body, foot_left, foot_right, fps=30):
     Player.tsx simplesmente não toca nenhuma action.
     """
     bpy.context.scene.render.fps = fps
-    n = WALK_CYCLE_FRAMES
-    quarter = n / 4
+    frames, phis = _phase_points(WALK_CYCLE_FRAMES)
+
+    def animate(obj, bob_vals=None, sway_vals=None, nod_vals=None, x_vals=None):
+        obj.rotation_mode = "XYZ"  # transform_apply() vira QUATERNION; sem
+        # isso a keyframe em rotation_euler fica inerte (não é a rotação ativa).
+        obj.animation_data_create()
+        action = bpy.data.actions.new("Walk")
+        obj.animation_data.action = action
+        if x_vals is not None:
+            _set_fcurve(action, obj, "location", 0, frames, x_vals)
+        if bob_vals is not None:
+            _set_fcurve(action, obj, "location", 2, frames, bob_vals)
+        if sway_vals is not None:
+            _set_fcurve(action, obj, "rotation_euler", 0, frames, sway_vals)
+        if nod_vals is not None:
+            _set_fcurve(action, obj, "rotation_euler", 1, frames, nod_vals)
+        _push_action_to_nla(obj, action)
 
     # --- corpo: bob (2 baques/ciclo) + balanço lateral (alterna a cada passo) ---
-    body.rotation_mode = "XYZ"  # transform_apply() vira QUATERNION; sem isso
-    # a keyframe em rotation_euler fica inerte (não é a rotação ativa).
-    body.animation_data_create()
-    walk_body = bpy.data.actions.new("Walk")
-    body.animation_data.action = walk_body
-    bob = [(0, 0.0), (quarter, WALK_BOB_HEIGHT), (2 * quarter, 0.0), (3 * quarter, WALK_BOB_HEIGHT), (n, 0.0)]
-    sway = [(0, 0.0), (quarter, WALK_SWAY), (2 * quarter, 0.0), (3 * quarter, -WALK_SWAY), (n, 0.0)]
-    _set_fcurve(walk_body, body, "location", 2, bob)
-    _set_fcurve(walk_body, body, "rotation_euler", 0, sway)
-    _push_action_to_nla(body, walk_body)
+    animate(
+        body,
+        bob_vals=[abs(math.sin(phi)) * WALK_BOB_HEIGHT for phi in phis],
+        sway_vals=[math.sin(phi) * WALK_SWAY for phi in phis],
+    )
+
+    # --- capuz/cachecol: mesmo movimento do corpo, com atraso e mais amplitude
+    # (inércia de tecido solto) + um leve balanço frente/trás próprio.
+    hood_phis = [phi + HOOD_PHASE_LAG for phi in phis]
+    animate(
+        hood,
+        bob_vals=[abs(math.sin(phi)) * WALK_BOB_HEIGHT * HOOD_BOB_MULT for phi in hood_phis],
+        sway_vals=[math.sin(phi) * WALK_SWAY * HOOD_SWAY_MULT for phi in hood_phis],
+        nod_vals=[abs(math.sin(phi)) * HOOD_NOD for phi in hood_phis],
+    )
 
     # --- pés: X = STRIDE*cos(phi) (frente/trás), Z = LIFT*max(0,-phase_sign*sin(phi)).
     # X cresce (perna avançando) exatamente quando -phase_sign*sin(phi) > 0 —
     # só aí o pé pode levantar, senão ele "arrasta" no chão indo pra frente
     # em vez de balançar no ar. phase_sign oposto por pé = alternam a passada.
-    # amostrado em phi = 0, pi/2, pi, 3pi/2, 2pi (mesmos 5 frames de cima).
-    def stride_frames(phase_sign):
-        cos_samples = (1, 0, -1, 0, 1)
-        sin_samples = (0, 1, 0, -1, 0)
-        xs = [phase_sign * WALK_STRIDE * v for v in cos_samples]
-        zs = [max(0.0, -phase_sign * v) * WALK_LIFT for v in sin_samples]
-        frames_x = list(zip((0, quarter, 2 * quarter, 3 * quarter, n), xs))
-        frames_z = list(zip((0, quarter, 2 * quarter, 3 * quarter, n), zs))
-        return frames_x, frames_z
-
     for foot, phase_sign in ((foot_left, 1), (foot_right, -1)):
-        foot.animation_data_create()
-        walk_foot = bpy.data.actions.new("Walk")
-        foot.animation_data.action = walk_foot
-        fx, fz = stride_frames(phase_sign)
-        _set_fcurve(walk_foot, foot, "location", 0, fx)
-        _set_fcurve(walk_foot, foot, "location", 2, fz)
-        _push_action_to_nla(foot, walk_foot)
+        animate(
+            foot,
+            x_vals=[phase_sign * WALK_STRIDE * math.cos(phi) for phi in phis],
+            bob_vals=[max(0.0, -phase_sign * math.sin(phi)) * WALK_LIFT for phi in phis],
+        )
 
     print("acoes criadas:", [a.name for a in bpy.data.actions])
 
@@ -285,9 +344,11 @@ def main():
     obj = import_and_decimate()
     make_face_glow(obj)
     foot_left, foot_right = separate_feet(obj)
-    make_game_ready([obj, foot_left, foot_right])
-    add_walk_cycle(obj, foot_left, foot_right)
-    export_glb([obj, foot_left, foot_right], GLB_OUTPUT)
+    hood = separate_hood(obj)
+    all_objects = [obj, hood, foot_left, foot_right]
+    make_game_ready(all_objects)
+    add_walk_cycle(obj, hood, foot_left, foot_right)
+    export_glb(all_objects, GLB_OUTPUT)
     print("EXPORTED_TO", GLB_OUTPUT)
 
 

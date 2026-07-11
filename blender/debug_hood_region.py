@@ -1,9 +1,8 @@
 """
-Debug: pinta de rosa as faces candidatas a "pés" (por posicao, usando os
-mesmos FEET_*_RANGE de export_game_character.py) e renderiza de frente pra
-calibrar visualmente, sem depender do addon MCP (que exige GUI).
+Debug: pinta de rosa as faces candidatas a "capuz" (por posicao Z, escala
+fonte original) e renderiza de frente pra calibrar HOOD_Z_MIN visualmente.
 
-  blender --background --python blender/debug_feet_region.py
+  blender --background --python blender/debug_hood_region.py
 """
 import bpy
 import bmesh
@@ -14,6 +13,8 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import export_game_character as m  # noqa: E402
+
+HOOD_Z_MIN = 0.15
 
 
 def main():
@@ -34,32 +35,23 @@ def main():
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.faces.ensure_lookup_table()
-    count_left = count_right = 0
+    count = 0
     for f in bm.faces:
         c = f.calc_center_median()
-        if (
-            m.FEET_X_RANGE[0] <= c.x <= m.FEET_X_RANGE[1]
-            and m.FEET_Y_RANGE[0] <= c.y <= m.FEET_Y_RANGE[1]
-            and m.FEET_Z_RANGE[0] <= c.z <= m.FEET_Z_RANGE[1]
-        ):
+        if c.z >= HOOD_Z_MIN:
             f.material_index = idx
-            if c.x < 0:
-                count_left += 1
-            else:
-                count_right += 1
+            count += 1
     bm.to_mesh(mesh)
     bm.free()
     mesh.update()
-    print("faces candidatas a pe: left=", count_left, "right=", count_right)
-    print("FEET_Z_RANGE:", m.FEET_Z_RANGE, "FEET_Y_RANGE:", m.FEET_Y_RANGE, "FEET_X_RANGE:", m.FEET_X_RANGE)
+    print("faces candidatas a capuz:", count, "de", len(mesh.polygons), "HOOD_Z_MIN=", HOOD_Z_MIN)
 
     cam_data = bpy.data.cameras.new("Camera")
-    cam_data.lens = 45
+    cam_data.lens = 40
     cam_obj = bpy.data.objects.new("Camera", cam_data)
     bpy.context.collection.objects.link(cam_obj)
-    focus_z = (m.FEET_Z_RANGE[0] + m.FEET_Z_RANGE[1]) / 2
-    cam_loc = Vector((1.4, 0.0, focus_z))
-    target = Vector((0.0, 0.0, focus_z))
+    cam_loc = Vector((1.6, 0.0, 0.15))
+    target = Vector((0.0, 0.0, 0.15))
     cam_obj.location = cam_loc
     cam_obj.rotation_euler = (target - cam_loc).to_track_quat("-Z", "Y").to_euler()
     bpy.context.scene.camera = cam_obj
@@ -76,7 +68,7 @@ def main():
     scene.render.resolution_x = 700
     scene.render.resolution_y = 700
     scene.render.film_transparent = False
-    scene.render.filepath = os.path.join(m.REPO_ROOT, "blender", "renders", "debug-feet-region.png")
+    scene.render.filepath = os.path.join(m.REPO_ROOT, "blender", "renders", "debug-hood-region.png")
     bpy.ops.render.render(write_still=True)
     print("DONE")
 
