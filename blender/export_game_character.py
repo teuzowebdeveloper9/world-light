@@ -34,12 +34,11 @@ TARGET_HEIGHT = 1.45
 FACE_Y_RANGE = (-0.045, 0.045)
 FACE_Z_RANGE = (0.27, 0.35)
 
-# Região que contém os pés + um pouco da barra rasgada ao redor (calibrado
-# olhando blender/renders/debug-feet-region.png, escala-fonte original,
-# altura total [-0.5, 0.5]). Não dá pra isolar só a pele sem também pegar
-# um pouco do tecido que se sobrepõe na mesma altura, o que é até
-# bem-vindo: o pano balança junto com a perna, como um tecido solto de
-# verdade. Dividido em X=0 vira pé esquerdo/direito.
+# Região a REMOVER da malha principal (pés + barra rasgada ao redor,
+# calibrado olhando blender/renders/debug-feet-region.png, escala-fonte
+# original, altura total [-0.5, 0.5]) — vira um buraco preenchido por dois
+# pés procedurais simples (ver separate_feet: a malha real aqui é uma
+# superfície contínua sem corte plano que separe os dois pés de verdade).
 FEET_X_RANGE = (-0.2, 0.2)
 FEET_Y_RANGE = (-0.10, 0.10)
 FEET_Z_RANGE = (-0.5, -0.35)
@@ -126,7 +125,41 @@ def _extract_faces(bm_source, faces, name, materials):
     return obj
 
 
+FOOT_LENGTH = 0.13
+FOOT_WIDTH = 0.055
+FOOT_HEIGHT = 0.06
+FOOT_Y_OFFSET = 0.055  # distância do centro pra cada pé
+FOOT_X = 0.02  # um pouco pra frente
+FOOT_Z = -0.44  # perto do fundo da região apagada (escala-fonte)
+
+
+def _make_box_foot(name, y_center, material):
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, verts=bm.verts, vec=(FOOT_LENGTH, FOOT_WIDTH, FOOT_HEIGHT))
+    for v in bm.verts:
+        v.co.x += FOOT_X
+        v.co.y += y_center
+        v.co.z += FOOT_Z
+    bm.normal_update()
+    mesh = bpy.data.meshes.new(name)
+    mesh.materials.append(material)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
 def separate_feet(obj):
+    """
+    A malha real dos pés é uma superfície CONTÍNUA com a barra rasgada da
+    capa ao redor (confirmado em blender/renders/debug-feet-split2.png:
+    dividir por qualquer plano X ou Y só entrelaça os dois pés, nunca
+    separa em duas peças de verdade — não existe corte plano limpo aqui).
+    Em vez de brigar com a topologia, apaga a região e põe dois pés simples
+    (caixinhas) na abertura — dá controle total de posição pra passada.
+    """
     mesh = obj.data
     bm = bmesh.new()
     bm.from_mesh(mesh)
@@ -141,19 +174,20 @@ def separate_feet(obj):
         )
 
     candidates = [f for f in bm.faces if in_box(f)]
-    left = [f for f in candidates if f.calc_center_median().x < 0]
-    right = [f for f in candidates if f.calc_center_median().x >= 0]
-
-    materials = list(mesh.materials)
-    left_obj = _extract_faces(bm, left, "FootLeft", materials)
-    right_obj = _extract_faces(bm, right, "FootRight", materials)
-
     bmesh.ops.delete(bm, geom=candidates, context="FACES")
     bm.to_mesh(mesh)
     bm.free()
     mesh.update()
+    print("faces removidas da regiao dos pes:", len(candidates))
 
-    print("pes extraidos: left=", len(left), "right=", len(right), "faces")
+    skin_mat = bpy.data.materials.new("Skin")
+    skin_mat.use_nodes = True
+    bsdf = skin_mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = (0.42, 0.27, 0.18, 1.0)
+    bsdf.inputs["Roughness"].default_value = 0.7
+
+    left_obj = _make_box_foot("FootLeft", -FOOT_Y_OFFSET, skin_mat)
+    right_obj = _make_box_foot("FootRight", FOOT_Y_OFFSET, skin_mat)
     return left_obj, right_obj
 
 
@@ -177,8 +211,22 @@ def separate_hood(obj):
     return hood_obj
 
 
+"""
+Player.tsx gira o modelo com `visual.rotation.y = facing`, onde
+`facing = atan2(vx, vz)` — isso vale 0 quando o player anda em +Z, ou seja,
+o jogo assume que o modelo "parado" (rotation.y=0) já olha pra +Z. Mas a
+frente deste modelo é o eixo X do Blender (ver nota em WALK_BOB_HEIGHT
+abaixo), que o exportador glTF mantém como X (a conversão Z-up -> Y-up só
+mexe em Y/Z, não em X). Sem essa rotação, o boneco anda sempre 90° errado
+— "de lado" em vez de de frente pro movimento. Gira em torno do próprio Z
+do Blender (o eixo vertical, que vira o Y do three.js) pra alinhar X -> Z.
+"""
+FORWARD_ROTATION_Z = -math.pi / 2
+
+
 def make_game_ready(objects):
-    """Pés (o ponto mais baixo entre TODOS os objetos) em Z=0, altura alvo.
+    """Pés (o ponto mais baixo entre TODOS os objetos) em Z=0, altura alvo,
+    e girado pra alinhar a frente do modelo com a frente que o jogo espera.
 
     Objetos ainda em location/scale identidade neste ponto — calcular a
     translação ANTES de escalar dava pés fora do lugar (a escala se aplica
@@ -193,6 +241,7 @@ def make_game_ready(objects):
     for o in objects:
         o.scale = (scale, scale, scale)
         o.location = (0.0, 0.0, z_offset)
+        o.rotation_euler = (0.0, 0.0, FORWARD_ROTATION_Z)
         # transform_apply() opera nos objetos SELECIONADOS, não no "ativo" —
         # sem isolar a seleção aqui, só o 1º objeto do loop era realmente
         # aplicado (os outros ficavam com o transform "pendurado", não
@@ -205,17 +254,38 @@ def make_game_ready(objects):
     print("bbox z apos ajuste:", min_z * scale + z_offset, max_z * scale + z_offset)
 
 
+def set_origin_to_z(obj, z):
+    """
+    Move o pivô do objeto pra um Z específico (mundo), sem mexer na malha
+    visualmente. Sem isso, toda rotação do capuz gira em torno da origem do
+    personagem lá embaixo (pés) — um ângulo pequeno vira um arco enorme na
+    altura do capuz (~1m acima), abrindo um espaço visível entre capuz e
+    corpo. Girar em torno do pescoço (o próprio ponto de encontro com o
+    corpo) mantém a costura fechada não importa o ângulo.
+    """
+    cursor = bpy.context.scene.cursor
+    saved = cursor.location.copy()
+    cursor.location = (0.0, 0.0, z)
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    cursor.location = saved
+
+
 WALK_BOB_HEIGHT = 0.05
 WALK_SWAY = 0.04
 WALK_STRIDE = 0.09
 WALK_LIFT = 0.035
 WALK_CYCLE_FRAMES = 20
 # Capuz/cachecol: tecido solto reagindo com inércia ao movimento do corpo —
-# atraso de fase + mais amplitude que o balanço do corpo ("follow-through",
-# um dos 12 princípios de animação: a parte solta sempre chega um instante
-# depois e ultrapassa um pouco).
+# atraso de fase + mais amplitude de ROTAÇÃO que o balanço do corpo
+# ("follow-through", um dos 12 princípios de animação). O BOB vertical é o
+# MESMO do corpo (sem multiplicador) — translação não se importa com pivô,
+# então qualquer diferença aqui abriria uma folga vertical entre capuz e
+# corpo; só a rotação usa o pivô no pescoço (set_origin_to_z) pra poder
+# exagerar sem descolar a costura.
 HOOD_PHASE_LAG = 0.35  # rad
-HOOD_BOB_MULT = 1.3
 HOOD_SWAY_MULT = 1.5
 HOOD_NOD = 0.05  # rad — leve balanço frente/trás (eixo Y), some no corpo/pés
 """
@@ -283,10 +353,14 @@ def add_walk_cycle(body, hood, foot_left, foot_right, fps=30):
         obj.animation_data_create()
         action = bpy.data.actions.new("Walk")
         obj.animation_data.action = action
+        # base_z != 0 pro Hood (set_origin_to_z moveu o pivô pro pescoço) —
+        # a keyframe em "location" grava o valor ABSOLUTO, não um delta, então
+        # sem somar a base ele "teletransportaria" o capuz pro chão.
+        base_z = obj.location.z
         if x_vals is not None:
             _set_fcurve(action, obj, "location", 0, frames, x_vals)
         if bob_vals is not None:
-            _set_fcurve(action, obj, "location", 2, frames, bob_vals)
+            _set_fcurve(action, obj, "location", 2, frames, [base_z + v for v in bob_vals])
         if sway_vals is not None:
             _set_fcurve(action, obj, "rotation_euler", 0, frames, sway_vals)
         if nod_vals is not None:
@@ -300,12 +374,13 @@ def add_walk_cycle(body, hood, foot_left, foot_right, fps=30):
         sway_vals=[math.sin(phi) * WALK_SWAY for phi in phis],
     )
 
-    # --- capuz/cachecol: mesmo movimento do corpo, com atraso e mais amplitude
-    # (inércia de tecido solto) + um leve balanço frente/trás próprio.
+    # --- capuz/cachecol: MESMO bob do corpo (fecha a costura), rotação com
+    # atraso e mais amplitude (inércia de tecido solto, gira em torno do
+    # pescoço graças ao set_origin_to_z) + um leve balanço frente/trás próprio.
     hood_phis = [phi + HOOD_PHASE_LAG for phi in phis]
     animate(
         hood,
-        bob_vals=[abs(math.sin(phi)) * WALK_BOB_HEIGHT * HOOD_BOB_MULT for phi in hood_phis],
+        bob_vals=[abs(math.sin(phi)) * WALK_BOB_HEIGHT for phi in phis],
         sway_vals=[math.sin(phi) * WALK_SWAY * HOOD_SWAY_MULT for phi in hood_phis],
         nod_vals=[abs(math.sin(phi)) * HOOD_NOD for phi in hood_phis],
     )
@@ -347,6 +422,11 @@ def main():
     hood = separate_hood(obj)
     all_objects = [obj, hood, foot_left, foot_right]
     make_game_ready(all_objects)
+
+    hood_seam_z = min(v.co.z for v in hood.data.vertices)
+    set_origin_to_z(hood, hood_seam_z)
+    print("hood pivo em z=", hood_seam_z)
+
     add_walk_cycle(obj, hood, foot_left, foot_right)
     export_glb(all_objects, GLB_OUTPUT)
     print("EXPORTED_TO", GLB_OUTPUT)
