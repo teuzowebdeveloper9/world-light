@@ -22,9 +22,13 @@ o pipeline não depende mais dele: a fonte fica versionada no repo.
 import bpy
 import bmesh
 import math
+import os
 
-GLB_SOURCE = "/home/teuzothedev/work/world-light/blender/sources/hooded-figure-source.glb"
-GLB_OUTPUT = "/home/teuzothedev/work/world-light/public/models/hooded-figure.glb"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+GLB_SOURCE = os.path.join(SCRIPT_DIR, "sources", "hooded-figure-source.glb")
+GLB_OUTPUT = os.path.join(REPO_ROOT, "public", "models", "hooded-figure.glb")
 TARGET_HEIGHT = 1.45
 
 FACE_Y_RANGE = (-0.045, 0.045)

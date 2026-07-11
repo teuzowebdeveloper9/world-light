@@ -8,10 +8,11 @@ calibrar visualmente, sem depender do addon MCP (que exige GUI).
 import bpy
 import bmesh
 import math
+import os
 import sys
 from mathutils import Vector
 
-sys.path.insert(0, "/home/teuzothedev/work/world-light/blender")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import export_game_character as m  # noqa: E402
 
 
@@ -74,7 +75,7 @@ def main():
     scene.render.resolution_x = 700
     scene.render.resolution_y = 700
     scene.render.film_transparent = False
-    scene.render.filepath = "/home/teuzothedev/work/world-light/blender/renders/debug-feet-region.png"
+    scene.render.filepath = os.path.join(m.REPO_ROOT, "blender", "renders", "debug-feet-region.png")
     bpy.ops.render.render(write_still=True)
     print("DONE")
 
