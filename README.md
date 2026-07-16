@@ -25,12 +25,16 @@ rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 
 ## Asset credits
 
-- **Hooded figure** — the playable character: a static (unrigged) sculpted
-  mesh with a small emissive region standing in for a face — a "sun" that
-  glows from inside the hood, never a visible face. Built procedurally in
-  Blender from a base model; see `blender/hooded_sun_figure_realistic.py`
-  and `blender/export_game_character.py` for the full generation +
-  game-export pipeline.
+- **The Traveler of Light (playable character)** — **100% original**,
+  modeled procedurally from primitives in headless Blender (no external
+  assets, no AI generation): a tiny (1.1u) pitch-dark hooded cloak
+  (~#060609) sculpted with multi-octave cloth folds, whose **face and feet
+  are pure emissive light** — the only things visible besides the darkness.
+  ~249k triangles, with baked `Walk` (real alternating light-feet strides +
+  wind follow-through in the back cape) and `Fly` (cape streaming up and
+  back) clips — see `blender/player_light.py`. The previous hooded-figure
+  pipeline (`blender/hooded_sun_figure_realistic.py` +
+  `blender/export_game_character.py`) is kept in the repo for history.
 - **Dogs (Husky & Shiba Inu)** — from **LowPoly Animated Animals** by
   **[Quaternius](https://quaternius.com)** ([poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS)).
   Licensed **CC0**. Thank you, Quaternius! 🐕
@@ -70,9 +74,12 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
   Even if a collider hasn't mounted yet, the player can never fall through
   the world. On slopes, the visual model is pulled down to the real terrain
   height (snap), so the feet always touch the ground.
-- **Character** — a static sculpted mesh (no rig/animations); footstep
-  cadence and SFX still follow the actual physics speed, only the visual
-  crossfade between poses is gone since the model has none to blend.
+- **Character** — no rig: the `Walk` and `Fly` clips are baked
+  object-transform animations (light-feet strides + cape wind; cape
+  streaming while airborne), crossfaded from the real physics state
+  (grounded + speed → Walk; >0.2s without ground → Fly, slightly faster
+  the harder you fall). Footstep cadence and SFX follow the actual
+  physics speed.
 - **Camera** — low third-person camera (the world feels huge), orbit with
   `Q`/`E` or mouse drag (horizontal **and vertical**, with pitch clamp), a
   subtle FOV kick while sprinting, a cinematic diving entrance, and the

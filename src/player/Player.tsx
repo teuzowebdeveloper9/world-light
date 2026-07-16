@@ -33,7 +33,7 @@ import { clamp, dampFactor, lerp, smoothstep } from '../utils/math'
 import { bindPlayerInput, input, playerState } from './PlayerController'
 import { cameraRig } from './cameraRig'
 
-const MODEL_URL = `${import.meta.env.BASE_URL}models/hooded-figure.glb`
+const MODEL_URL = `${import.meta.env.BASE_URL}models/player-light.glb`
 useGLTF.preload(MODEL_URL)
 
 const CAPSULE_HALF = 0.45
@@ -75,14 +75,18 @@ const STEEP_NORMAL_Y_FULL = 0.56
 /** Aceleração máxima de deslize ladeira abaixo em rampas intransponíveis. */
 const STEEP_SLIDE_ACCEL = 16
 
-/** Modelo já exportado game-ready (pés em Y=0, altura ~1.45 — ver blender/export_game_character.py). */
+/** Modelo já exportado game-ready (base em Y=0, altura ~1.10 — o Viajante
+ * da Luz v2 é baixinho de propósito; ver blender/player_light.py). */
 const MODEL_SCALE = 1
+
+type ClipName = 'none' | 'walk' | 'fly'
 
 function CharacterModel() {
   const group = useRef<THREE.Group>(null)
   const { scene, animations } = useGLTF(MODEL_URL)
   const { actions } = useAnimations(animations, group)
-  const walking = useRef(false)
+  const current = useRef<ClipName>('none')
+  const airTime = useRef(0)
 
   useEffect(() => {
     scene.scale.setScalar(MODEL_SCALE)
@@ -95,24 +99,40 @@ function CharacterModel() {
     })
   }, [scene])
 
-  // Sem rig de verdade: a única action ("Walk", bob + balanço) foi keyframada
-  // direto no transform do objeto em blender/export_game_character.py. Parada
-  // ou no ar ela dá fadeOut e a malha estática volta sozinha ao bind pose.
-  useFrame(() => {
+  // Sem rig de verdade: as actions ("Walk" com passada dos pés de luz +
+  // vento na capa; "Fly" com o manto esvoaçando pra trás) foram keyframadas
+  // direto nos transforms dos objetos em blender/player_light.py. Parado no
+  // chão nenhuma toca e a malha volta sozinha ao bind pose.
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, 0.05)
     const walk = actions.Walk
-    if (!walk) return
+    const fly = actions.Fly
+    if (!walk && !fly) return
     const hSpeed = Math.hypot(playerState.velocity.x, playerState.velocity.z)
-    const shouldWalk = playerState.grounded && hSpeed > 0.5
 
-    if (shouldWalk && !walking.current) {
-      walk.reset().fadeIn(0.15).play()
-      walking.current = true
-    } else if (!shouldWalk && walking.current) {
-      walk.fadeOut(0.2)
-      walking.current = false
+    // Histerese do voo: só troca pro clipe aéreo depois de ~0.2s sem chão —
+    // quiques curtos em rampa não ficam piscando entre clipes.
+    if (playerState.grounded) airTime.current = 0
+    else airTime.current += dt
+
+    const want: ClipName =
+      fly && airTime.current > 0.2
+        ? 'fly'
+        : walk && playerState.grounded && hSpeed > 0.5
+          ? 'walk'
+          : 'none'
+
+    if (want !== current.current) {
+      const byName = (name: ClipName) => (name === 'walk' ? walk : name === 'fly' ? fly : null)
+      byName(current.current)?.fadeOut(0.25)
+      byName(want)?.reset().fadeIn(0.25).play()
+      current.current = want
     }
-    if (shouldWalk) {
+    if (want === 'walk' && walk) {
       walk.timeScale = clamp(hSpeed / WALK_SPEED, 0.6, 2.2)
+    } else if (want === 'fly' && fly) {
+      // Voo levemente mais agitado quando despenca rápido.
+      fly.timeScale = clamp(0.9 + Math.abs(playerState.velocity.y) / 30, 0.9, 1.5)
     }
   })
 
