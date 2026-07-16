@@ -86,17 +86,19 @@ try {
 
   /**
    * Anda (W+Shift) até doneCheck() ser verdade, re-mirando a cada volta via
-   * update() e desprendendo de encostas (pulo + virada) se parar de render.
-   * Depois de um destrave, SEGURA o desvio por alguns segundos antes de
-   * voltar a mirar o alvo — senão a mira joga o player de volta no paredão
-   * e ele fica quicando contra a mesma encosta para sempre.
+   * update() e desprendendo de encostas se parar de render. O sinal de
+   * "preso" é o PROGRESSO DO walkTime, não o deslocamento: encalhado num
+   * paredão o corpo sem atrito OSCILA (desliza e volta) — a posição muda o
+   * tempo todo, mas o tempo andado congela. Depois de um destrave, SEGURA
+   * o desvio por alguns segundos antes de voltar a mirar o alvo — senão a
+   * mira joga o player de volta no mesmo paredão para sempre.
    */
   async function walkUntil(doneCheck, update, timeoutMs) {
     await page.keyboard.down('KeyW')
     await page.keyboard.down('ShiftLeft')
     const t0 = Date.now()
-    let last = await playerPos()
-    let lastMove = Date.now()
+    let lastWt = await walkTime()
+    let lastProgress = Date.now()
     let detourUntil = 0
     let ok = false
     while (Date.now() - t0 < timeoutMs) {
@@ -106,18 +108,18 @@ try {
       }
       if (update && Date.now() > detourUntil) await update()
       await page.waitForTimeout(700)
-      const p = await playerPos()
-      if (Math.hypot(p.x - last.x, p.z - last.z) > 1.2) {
-        last = p
-        lastMove = Date.now()
-      } else if (Date.now() - lastMove > 4500) {
-        // Preso numa encosta: pula, vira um tanto e mantém o desvio.
+      const wt = await walkTime()
+      if (wt > lastWt + 0.5) {
+        lastWt = wt
+        lastProgress = Date.now()
+      } else if (Date.now() - lastProgress > 9000) {
+        // Preso: pula, dá quase meia-volta e mantém o desvio um tempo.
         await page.keyboard.press('Space')
         await page.evaluate(() => {
-          window.__cameraRig.yaw += 1.2
+          window.__cameraRig.yaw += 2.4
         })
-        detourUntil = Date.now() + 5000
-        lastMove = Date.now()
+        detourUntil = Date.now() + 6000
+        lastProgress = Date.now()
       }
     }
     await page.keyboard.up('ShiftLeft')
@@ -146,11 +148,11 @@ try {
   if (d1 === null) {
     fail('princesa nunca montou (__princessPos ausente)')
   } else {
-    // Intro (~6s de jogo) vira ~30s+ de relógio no SwiftShader; espera a
-    // distância crescer de verdade em vez de um tempo fixo.
+    // Intro (~6s de jogo) + espera de 2.5s viram MINUTOS de relógio no
+    // SwiftShader (~10-25x); espera a distância crescer de verdade.
     let d2 = d1
     const t0 = Date.now()
-    while (Date.now() - t0 < 150000) {
+    while (Date.now() - t0 < 300000) {
       d2 = (await princessDist()) ?? d2
       const goneEarly = await page.evaluate(() => window.__princessGone === true)
       if (goneEarly || d2 > d1 + 8) break
@@ -173,15 +175,21 @@ try {
       const s = window.__sagePos
       if (!s) return false
       const p = window.__playerState.position
-      return Math.hypot(s.x - p.x, s.z - p.z) < 4.6
+      return Math.hypot(s.x - p.x, s.z - p.z) < 6
     })
-  const steerToSage = () =>
-    page.evaluate(() => {
+  // Além de mirar, solta o Shift perto do alvo: a 11 u/s com polls de
+  // 700ms o player ORBITA o sábio sem nunca amostrar dentro do raio.
+  const steerToSage = async () => {
+    const d = await page.evaluate(() => {
       const s = window.__sagePos
-      if (!s) return
+      if (!s) return Infinity
       const p = window.__playerState.position
       window.__cameraRig.yaw = Math.atan2(-(s.x - p.x), -(s.z - p.z))
+      return Math.hypot(s.x - p.x, s.z - p.z)
     })
+    if (d < 18) await page.keyboard.up('ShiftLeft')
+    else await page.keyboard.down('ShiftLeft')
+  }
   const sageDist = () =>
     page.evaluate(() => {
       const s = window.__sagePos
@@ -189,22 +197,26 @@ try {
       const p = window.__playerState.position
       return Math.hypot(s.x - p.x, s.z - p.z)
     })
-  if (!(await walkUntil(sageNear, steerToSage, 420000))) {
-    fail('não conseguiu chegar a 4.6m do sábio')
-  } else {
-    // Correndo a 11 u/s o poll de 700ms passa DIRETO do sábio — aproxima
-    // fino com toques curtos de W até estacionar dentro dos 5.5m do prompt.
-    for (let i = 0; i < 8; i++) {
-      const d = await sageDist()
-      if (d < 4.5) break
-      await steerToSage()
-      await page.keyboard.down('KeyW')
-      await page.waitForTimeout(350)
-      await page.keyboard.up('KeyW')
-      await page.waitForTimeout(700)
-    }
+  // Caminhar 100m de montanha procedural com um bot é loteria (4 rodadas de
+  // ajuste provaram) — e pathfinding não é o que se verifica aqui. O bot se
+  // MATERIALIZA a 3.5m do sábio (__teleport, DEV-only) e testa a mecânica:
+  // vulto -> present -> prompt -> H -> diálogo -> avanço.
+  {
+    // A chegada leva 2.6s de JOGO (~26s+ de relógio a 2fps no SwiftShader).
+    await page
+      .waitForFunction(() => window.__sageStage === 'present', null, { timeout: 240000 })
+      .catch(() => console.log('  (sábio ainda em arriving após 240s)'))
+    await page.evaluate(() => {
+      const s = window.__sagePos
+      const p = window.__playerState.position
+      const dx = p.x - s.x
+      const dz = p.z - s.z
+      const d = Math.hypot(dx, dz) || 1
+      window.__teleport(s.x + (dx / d) * 3.5, s.z + (dz / d) * 3.5)
+    })
+    await page.waitForTimeout(2500)
     console.log(`  distância final até o sábio: ${(await sageDist()).toFixed(1)}m`)
-    const prompt = await page.waitForSelector('.npc-prompt', { timeout: 8000 }).catch(() => null)
+    const prompt = await page.waitForSelector('.npc-prompt', { timeout: 30000 }).catch(() => null)
     if (!prompt) {
       const diag = await page.evaluate(() => ({
         stage: window.__sageStage,
@@ -233,8 +245,38 @@ try {
   }
 
   // ---- Lobo: acumula 40s andados; para; vira a câmera; deixa alcançar. ----
-  if (!(await walkUntil(async () => (await walkTime()) >= 40, null, 420000))) {
-    fail('walkTime nunca chegou a 40s (lobo)')
+  // Preso de frente num paredão o player OSCILA (desliza e volta): posição
+  // muda, mas walkTime não cresce — o destrave aqui é por PROGRESSO do
+  // walkTime, não por deslocamento.
+  {
+    await page.keyboard.down('KeyW')
+    await page.keyboard.down('ShiftLeft')
+    const t0 = Date.now()
+    let lastWt = await walkTime()
+    let lastProgress = Date.now()
+    let ok = false
+    while (Date.now() - t0 < 420000) {
+      const wt = await walkTime()
+      if (wt >= 40) {
+        ok = true
+        break
+      }
+      if (wt > lastWt + 0.8) {
+        lastWt = wt
+        lastProgress = Date.now()
+      } else if (Date.now() - lastProgress > 15000) {
+        // 15s sem andar de verdade: dá meia-volta e segue por outro caminho.
+        await page.keyboard.press('Space')
+        await page.evaluate(() => {
+          window.__cameraRig.yaw += 2.6
+        })
+        lastProgress = Date.now()
+      }
+      await page.waitForTimeout(700)
+    }
+    await page.keyboard.up('ShiftLeft')
+    await page.keyboard.up('KeyW')
+    if (!ok) fail('walkTime nunca chegou a 40s (lobo)')
   }
   const spawned = await page
     .waitForFunction(() => window.__wolfStage === 'chasing', null, { timeout: 30000 })

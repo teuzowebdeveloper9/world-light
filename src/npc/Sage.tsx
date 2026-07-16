@@ -22,9 +22,11 @@ export const SAGE_MODEL_URL = `${import.meta.env.BASE_URL}models/sage.glb`
 const HEIGHT = 1.8
 /** "ele vai aparecer em 100 metros como um vulto". */
 const APPEAR_DISTANCE = 100
-const TALK_DISTANCE = 5.5
-/** Afastar-se além disso no meio da conversa fecha o diálogo (retomável). */
-const DIALOG_BREAK_DISTANCE = 9
+const TALK_DISTANCE = 6.5
+/** Afastar-se além disso no meio da conversa fecha o diálogo (retomável).
+ * Folgado de propósito: num declive o corpo sem atrito escorrega devagar
+ * e uma janela apertada cortava a conversa sozinha. */
+const DIALOG_BREAK_DISTANCE = 13
 /** Perto daqui as cores reais aparecem; longe dali, só a silhueta. */
 const SILHOUETTE_NEAR = 16
 const SILHOUETTE_FAR = 65
@@ -97,20 +99,38 @@ export function Sage() {
     let x = p.x + Math.sin(baseAngle) * appearDist
     let z = p.z + Math.cos(baseAngle) * appearDist
     if (!NPC_TEST_MODE) {
-      for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+      // O ponto de encontro precisa ser uma CLAREIRA PLANA de verdade: o
+      // corpo sem atrito escorrega em declive e levava o viajante para fora
+      // do raio de conversa sozinho. Avalia cada candidato pelo pior nY
+      // entre o centro e um anel de 4 amostras a 3m — fica com o melhor.
+      const flatness = (cx: number, cz: number): number => {
+        let worst = sampler.normal(cx, cz, normalOut)[1]
+        for (let i = 0; i < 4; i++) {
+          const a = (i * Math.PI) / 2
+          const nY = sampler.normal(cx + Math.sin(a) * 3, cz + Math.cos(a) * 3, normalOut)[1]
+          if (nY < worst) worst = nY
+        }
+        return worst
+      }
+      let bestScore = -1
+      for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4]) {
         const cx = p.x + Math.sin(baseAngle + off) * appearDist
         const cz = p.z + Math.cos(baseAngle + off) * appearDist
-        const [, nY] = sampler.normal(cx, cz, normalOut)
-        if (nY >= 0.82) {
+        const score = flatness(cx, cz)
+        if (score > bestScore) {
+          bestScore = score
           x = cx
           z = cz
-          break
         }
+        // Plano o bastante (~26°): para no primeiro bom, priorizando a frente.
+        if (score >= 0.9) break
       }
     }
     pos.current.set(x, sampler.height(x, z), z)
     if (import.meta.env.DEV) {
-      ;(window as unknown as Record<string, unknown>).__sagePos = pos.current
+      const w = window as unknown as Record<string, unknown>
+      w.__sagePos = pos.current
+      w.__sageMounts = ((w.__sageMounts as number) || 0) + 1
     }
     yaw.current = Math.atan2(p.x - x, p.z - z)
     // Invisível até o pico do clarão do pilar; posiciona já no commit —
@@ -140,6 +160,7 @@ export function Sage() {
       const w = window as unknown as Record<string, unknown>
       w.__sageStage = stage.current
       w.__sageDist = dist
+      w.__sageGroupPos = g.position
     }
 
     if (stage.current === 'arriving') {

@@ -173,6 +173,19 @@ export function Player() {
     playerState.position.set(spawn[0], spawn[1] - FEET_OFFSET, spawn[2])
     const unbindKeys = bindPlayerInput()
 
+    // Teleporte de desenvolvimento (Playwright): dirigir um bot por 100m de
+    // montanha procedural é loteria — os testes verificam MECÂNICA de
+    // encontro, não pathfinding, então eles se materializam onde precisam.
+    if (import.meta.env.DEV) {
+      ;(window as unknown as Record<string, unknown>).__teleport = (x: number, z: number) => {
+        const body = rb.current
+        if (!body) return
+        const y = sampler.height(x, z) + FEET_OFFSET + 0.3
+        body.setTranslation({ x, y, z }, true)
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      }
+    }
+
     // Órbita opcional com arrasto do mouse.
     let dragging = false
     const down = (e: PointerEvent) => {
@@ -269,7 +282,10 @@ export function Player() {
         // equilíbrio de até ~1.4 m/s contra o damping — o boneco "andava
         // sozinho" ladeira abaixo para sempre. O freio suave leva a corrida
         // até 2.5 m/s; daí o corte para 0 é imperceptível.
-        if (f === 0 && r === 0 && grounded && Math.hypot(vx, vz) < 2.5) {
+        // Durante a INTRO da câmera o jogador ainda nem se orientou: sem
+        // input, pina de vez (senão um nascimento em encosta íngreme desliza
+        // o viajante para longe da princesa antes do controle chegar).
+        if (f === 0 && r === 0 && grounded && (Math.hypot(vx, vz) < 2.5 || !cameraRig.introDone)) {
           vx = 0
           vz = 0
         }
