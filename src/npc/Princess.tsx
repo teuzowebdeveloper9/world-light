@@ -14,6 +14,7 @@ import * as THREE from 'three'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import { useExperienceStore } from '../state/useExperienceStore'
 import { playerState } from '../player/PlayerController'
+import { cameraRig } from '../player/cameraRig'
 import { getTerrainSampler } from '../world/noise'
 import { sfxController } from '../audio/SfxController'
 import { clamp, dampFactor } from '../utils/math'
@@ -24,9 +25,10 @@ useGLTF.preload(PRINCESS_MODEL_URL)
 const HEIGHT = 1.02
 /** Distância à frente do viajante onde ela aparece no início. */
 const APPEAR_AHEAD = 9
-/** Quanto tempo ela encara o viajante antes de disparar (a intro da câmera
- * leva ~6s — ela dispara bem quando o controle chega às mãos do jogador). */
-const WAIT_SECONDS = 4.5
+/** Quanto tempo ela encara o viajante antes de disparar — contado só
+ * DEPOIS da intro da câmera terminar (em 60fps ela disparava no meio do
+ * mergulho cinematográfico e ninguém chegava a vê-la). */
+const WAIT_SECONDS = 2.5
 /** Chegar mais perto que isso corta a espera: ela dispara na hora. */
 const PANIC_DISTANCE = 5
 /** Piso de velocidade de fuga — sempre acima da corrida do jogador (11). */
@@ -80,6 +82,7 @@ export function Princess() {
   const timer = useRef(WAIT_SECONDS)
   const fleeing = useRef(false)
   const fading = useRef(false)
+  const glow = useRef<THREE.PointLight>(null)
 
   // Nasce alguns metros à frente do viajante, de frente para ele.
   useEffect(() => {
@@ -115,7 +118,9 @@ export function Princess() {
     const dist = Math.hypot(px, pz)
 
     if (!fleeing.current) {
-      timer.current -= dt
+      // O relógio da fuga só corre depois da intro; chegar perto assusta
+      // e dispara na hora de qualquer jeito.
+      if (cameraRig.introDone) timer.current -= dt
       // Encara o viajante enquanto espera.
       const facePlayer = Math.atan2(-px, -pz)
       let d = facePlayer - yaw.current
@@ -152,6 +157,7 @@ export function Princess() {
         }
         const opacity = clamp(1 - (dist - FADE_START) / (GONE_DISTANCE - FADE_START), 0, 1)
         for (const m of mats) m.opacity = opacity
+        if (glow.current) glow.current.intensity = 2.6 * opacity
         if (opacity <= 0.02) {
           setGone(true)
           sfxController.chime()
@@ -172,6 +178,9 @@ export function Princess() {
   return (
     <group ref={group}>
       <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+      {/* Ela é feita de luz: um brilho quente próprio garante que ninguém
+          a perca — mesmo nascendo de noite ou em contraluz. */}
+      <pointLight ref={glow} position={[0, 1.1, 0]} color="#ffe9c4" intensity={2.6} distance={10} decay={1.8} />
     </group>
   )
 }

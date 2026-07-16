@@ -46,6 +46,12 @@ class CameraRig {
     this.initialized = false
   }
 
+  /** A aproximação cinematográfica de entrada já terminou? (Eventos do
+   * mundo que precisam ser VISTOS — a princesa — esperam por isto.) */
+  get introDone(): boolean {
+    return this.introT >= 1
+  }
+
   update(camera: THREE.Camera, dt: number, playing: boolean): void {
     if (input.rotateLeft) this.yaw += 1.9 * dt
     if (input.rotateRight) this.yaw -= 1.9 * dt

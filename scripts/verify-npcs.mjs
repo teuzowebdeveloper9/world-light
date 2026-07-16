@@ -132,23 +132,34 @@ try {
   await page.keyboard.press('KeyK')
   await page.waitForSelector('.help-panel', { timeout: 90000 })
 
-  // ---- Princesa: parada à frente na intro; foge para sempre. ----
+  // ---- Princesa: espera parada até o FIM da intro da câmera, depois
+  // foge para sempre — o teste espera a fuga de verdade acontecer. ----
+  const princessDist = () =>
+    page.evaluate(() => {
+      const a = window.__princessPos
+      const p = window.__playerState.position
+      return a ? Math.hypot(a.x - p.x, a.z - p.z) : null
+    })
   await page.waitForTimeout(2500)
   await shot('npc-01-princess-wait.png')
-  const d1 = await page.evaluate(() => {
-    const a = window.__princessPos
-    const p = window.__playerState.position
-    return a ? Math.hypot(a.x - p.x, a.z - p.z) : null
-  })
-  await page.waitForTimeout(9000)
-  await shot('npc-02-princess-flee.png')
-  const d2 = await page.evaluate(() => {
-    const a = window.__princessPos
-    const p = window.__playerState.position
-    return a ? Math.hypot(a.x - p.x, a.z - p.z) : null
-  })
-  if (d1 === null) fail('princesa nunca montou (__princessPos ausente)')
-  else console.log(`  princesa: ${d1.toFixed(1)}m -> ${d2?.toFixed(1)}m`)
+  const d1 = await princessDist()
+  if (d1 === null) {
+    fail('princesa nunca montou (__princessPos ausente)')
+  } else {
+    // Intro (~6s de jogo) vira ~30s+ de relógio no SwiftShader; espera a
+    // distância crescer de verdade em vez de um tempo fixo.
+    let d2 = d1
+    const t0 = Date.now()
+    while (Date.now() - t0 < 150000) {
+      d2 = (await princessDist()) ?? d2
+      const goneEarly = await page.evaluate(() => window.__princessGone === true)
+      if (goneEarly || d2 > d1 + 8) break
+      await page.waitForTimeout(1500)
+    }
+    await shot('npc-02-princess-flee.png')
+    console.log(`  princesa: ${d1.toFixed(1)}m -> ${d2.toFixed(1)}m`)
+    if (!(d2 > d1 + 8)) fail('princesa não fugiu (distância não cresceu)')
+  }
 
   // ---- Sábio: acumula 6s andados -> pilar -> dirige ATÉ ele -> H. ----
   if (!(await walkUntil(async () => (await walkTime()) >= 6, null, 180000))) {
