@@ -23,7 +23,7 @@ function readSecondsParam(name: string, fallback: number): number {
  * e o sábio conversa normalmente com H. Volte para false para restaurar o
  * comportamento real do jogo (fuga, 3 min do sábio, caçada dos 7 min).
  */
-export const NPC_TEST_MODE = true
+export const NPC_TEST_MODE = false
 
 export const npcState = {
   /** Segundos ANDADOS de verdade — parado, pausado ou no menu não conta. */
