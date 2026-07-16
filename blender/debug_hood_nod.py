@@ -21,11 +21,12 @@ def main():
     m.clear_scene()
     obj = m.import_and_decimate()
     m.make_face_glow(obj)
-    foot_left, foot_right = m.separate_feet(obj)
     hood = m.separate_hood(obj)
-    all_objs = [obj, hood, foot_left, foot_right]
+    all_objs = [obj, hood]
     m.make_game_ready(all_objs)
-    m.add_walk_cycle(obj, hood, foot_left, foot_right)
+    hood_seam_z = min(v.co.z for v in hood.data.vertices)
+    m.set_origin_to_z(hood, hood_seam_z)
+    m.add_walk_cycle(obj, hood)
 
     # vista lateral (perfil) - olhando ao longo do eixo Y (ombro a ombro),
     # pra ver claramente qualquer inclinacao frente/tras (eixo X, frente-tras)
