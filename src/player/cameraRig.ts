@@ -111,3 +111,8 @@ class CameraRig {
 }
 
 export const cameraRig = new CameraRig()
+
+// Inspeção/direção via console/Playwright durante o desenvolvimento.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__cameraRig = cameraRig
+}

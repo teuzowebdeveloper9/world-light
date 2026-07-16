@@ -1,6 +1,7 @@
 /**
  * Casca da experiência: gate de desktop, Canvas R3F, atalhos globais de
- * teclado (M / H / Esc), HUD minimalista e transição de entrada.
+ * teclado (M / H / Esc), HUD minimalista, overlays dos encontros (diálogo
+ * do sábio, apagão do lobo) e transição de entrada.
  */
 import { Suspense, useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -16,6 +17,7 @@ import { PhysicsWorld } from '../physics/PhysicsWorld'
 import { World } from '../world/World'
 import { Sun } from '../visuals/Sun'
 import { PostProcessing } from '../visuals/PostProcessing'
+import { SAGE_LINES } from '../npc/sageLines'
 import { DesktopOnlyGate } from './DesktopOnlyGate'
 import { KeyboardStartScreen } from './KeyboardStartScreen'
 
@@ -52,6 +54,39 @@ function Hud() {
   )
 }
 
+/** Prompt de conversa e caixa de diálogo do sábio (tecla H). */
+function SageDialogHud() {
+  const promptVisible = useExperienceStore((s) => s.sagePromptVisible)
+  const dialogIndex = useExperienceStore((s) => s.sageDialogIndex)
+
+  if (dialogIndex !== null) {
+    return (
+      <div className="dialog-box">
+        <div className="dialog-speaker">O Sábio</div>
+        <p className="dialog-line">{SAGE_LINES[dialogIndex]}</p>
+        <div className="dialog-hint">
+          <kbd>H</kbd> continuar · {dialogIndex + 1}/{SAGE_LINES.length}
+        </div>
+      </div>
+    )
+  }
+  if (promptVisible) {
+    return (
+      <div className="npc-prompt">
+        <kbd>H</kbd> falar com o Sábio
+      </div>
+    )
+  }
+  return null
+}
+
+/** Escurecimento total quando o lobo alcança o viajante — o CSS faz o
+ * fade lento nos dois sentidos; aqui só liga/desliga a classe. */
+function BlackoutOverlay() {
+  const blackout = useExperienceStore((s) => s.blackout)
+  return <div className={`blackout ${blackout ? 'blackout-active' : ''}`} />
+}
+
 export function Experience() {
   const phase = useExperienceStore((s) => s.phase)
   const worldReady = useExperienceStore((s) => s.worldReady)
@@ -81,7 +116,12 @@ export function Experience() {
         return
       }
       if (e.code === 'KeyM') s.setMusicOn(!s.musicOn)
-      if (e.code === 'KeyH') s.toggleHelp()
+      // H perto do sábio conversa (abre/avança o diálogo); longe dele,
+      // segue sendo o toggle da ajuda de sempre.
+      if (e.code === 'KeyH') {
+        if (s.sageDialogIndex !== null || s.sagePromptVisible) s.advanceSageDialog()
+        else s.toggleHelp()
+      }
       if (e.code === 'Escape' && s.phase === 'playing') s.setPaused(!s.paused)
     }
     window.addEventListener('keydown', onKey)
@@ -143,6 +183,8 @@ export function Experience() {
       )}
       <KeyboardStartScreen />
       <Hud />
+      <SageDialogHud />
+      <BlackoutOverlay />
     </div>
   )
 }

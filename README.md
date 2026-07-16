@@ -34,6 +34,12 @@ rapier (physics) · postprocessing · simplex-noise · Zustand · Web Worker.
 - **Dogs (Husky & Shiba Inu)** — from **LowPoly Animated Animals** by
   **[Quaternius](https://quaternius.com)** ([poly.pizza](https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS)).
   Licensed **CC0**. Thank you, Quaternius! 🐕
+- **Princess, Sage & Hooded Wolf** — **100% original characters**, modeled
+  *procedurally from primitives* in headless Blender (no external assets, no
+  AI generation): `blender/princess.py`, `blender/sage.py`,
+  `blender/wolf_hooded.py`. Each is 96k–118k triangles with baked
+  object-transform animation clips (`Run`/`Idle`) — same no-rig NLA
+  technique as the player character.
 
 ## License
 
@@ -91,6 +97,24 @@ see [`LICENSE.md`](LICENSE.md). Third-party CC0 assets keep their own licenses.
 - **Dogs** 🐕 — cute Huskies and Shiba Inus (Quaternius, CC0) spawn
   deterministically per area (~12% of chunks host one, max 6 alive at once).
   They wander, sniff, eat — and when you get close they run to you.
+- **The Princess** 👑 — at the very start, a tiny porcelain-pale princess
+  (blonde hair, dark obsidian crown, a dress hemmed with light) stares at
+  you for a moment… then bolts. She is **unreachable by design** — her speed
+  is always your current speed plus a margin (min 15 u/s vs. your 11) — and
+  ~100 m away she dissolves into light with a chime.
+- **The Sage** ✨ — after **3 minutes of actual walking** (standing still
+  doesn't count), a pillar of light announces him **100 m ahead**: a dark
+  distant silhouette whose colors only return as you approach (only his
+  glowing eyes and staff orb pierce the gloom). Within ~5 m, press `H` to
+  talk: **50 lines about light**, one per press — walk away mid-dialog and
+  he remembers where you stopped. After the 50th line he ascends in a beam
+  of light and is gone for good.
+- **The Hooded Wolf** 🐺 — after **7 minutes of walking**, an ember-eyed
+  hooded wolf spawns ~70 m behind you and hunts (12.6–14.5 u/s — you can buy
+  time, not escape), a low dissonant drone growing as he closes in. If he
+  catches you the screen slowly fades to pure black… then the world returns
+  as if nothing happened, the wolf gone. He may hunt again later; gliding
+  high or opening a 170 m gap makes him give up and dissolve.
 
 ---
 

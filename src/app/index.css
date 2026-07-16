@@ -228,6 +228,95 @@ body,
   letter-spacing: 0.12em;
 }
 
+/* ---------- encontros (sábio / lobo) ---------- */
+
+.npc-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 15vh;
+  transform: translateX(-50%);
+  z-index: 6;
+  font-size: 0.82rem;
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--warm-gold);
+  animation: hint-breathe 3.2s ease-in-out infinite;
+}
+
+.npc-prompt kbd {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid rgba(255, 217, 160, 0.5);
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+}
+
+.dialog-box {
+  position: fixed;
+  left: 50%;
+  bottom: 9vh;
+  transform: translateX(-50%);
+  width: min(680px, 78vw);
+  z-index: 7;
+  text-align: center;
+  padding: 1.15rem 1.6rem 0.9rem;
+  background: rgba(13, 19, 48, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 217, 160, 0.22);
+  border-radius: 14px;
+  animation: slow-rise 0.5s ease-out both;
+}
+
+.dialog-speaker {
+  font-size: 0.68rem;
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--warm-gold);
+  margin-bottom: 0.55rem;
+}
+
+.dialog-line {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 1.3rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.dialog-hint {
+  margin-top: 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  color: rgba(233, 230, 255, 0.55);
+}
+
+.dialog-hint kbd {
+  color: var(--warm-gold);
+  margin-right: 0.2rem;
+}
+
+/* O apagão do lobo: fecha rápido para o preto (ease-in, ~2s) e reabre bem
+   devagar (~2.8s) — o "voltar a si". pointer-events nunca bloqueia nada. */
+.blackout {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2.8s ease;
+}
+
+.blackout-active {
+  opacity: 1;
+  transition: opacity 1.9s ease-in;
+}
+
 /* ---------- animações ---------- */
 
 @keyframes particle-rise {

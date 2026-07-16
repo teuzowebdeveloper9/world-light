@@ -11,6 +11,7 @@ class SfxController {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private noiseBuffer: AudioBuffer | null = null
+  private droneGain: GainNode | null = null
 
   /** Chame dentro de um handler de interação do usuário. */
   unlock(): void {
@@ -70,6 +71,79 @@ class SfxController {
   /** "Puff" curto e agudo ao saltar. */
   jump(): void {
     this.noiseBurst(0.16, 1300, 0.035, 1.3)
+  }
+
+  /** Sino cristalino de aparição/partida mágica (dois parciais afinados). */
+  chime(): void {
+    const ctx = this.ensure()
+    if (!ctx || !this.master || ctx.state !== 'running') return
+    const t = ctx.currentTime
+    for (const [freq, peak, dur] of [
+      [1046.5, 0.045, 1.6],
+      [1568, 0.028, 1.1],
+    ] as const) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, t)
+      gain.gain.setValueAtTime(peak, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur)
+      osc.connect(gain)
+      gain.connect(this.master)
+      osc.start(t)
+      osc.stop(t + dur)
+    }
+  }
+
+  /** Baque profundo do apagão: sub-grave despencando + sopro de ruído. */
+  boom(): void {
+    this.noiseBurst(0.6, 240, 0.1)
+    const ctx = this.ctx
+    if (!ctx || !this.master || ctx.state !== 'running') return
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const t = ctx.currentTime
+    osc.frequency.setValueAtTime(72, t)
+    osc.frequency.exponentialRampToValueAtTime(28, t + 0.7)
+    gain.gain.setValueAtTime(0.16, t)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9)
+    osc.connect(gain)
+    gain.connect(this.master)
+    osc.start(t)
+    osc.stop(t + 0.95)
+  }
+
+  /**
+   * Drone contínuo de perigo — nível 0..1 (0 silencia). Dois dentes-de-serra
+   * quase uníssonos batem devagar (dissonância lenta = inquietação); criado
+   * preguiçosamente na primeira chamada com nível > 0 e reaproveitado.
+   * Pode ser chamado a cada frame: setTargetAtTime suaviza os degraus.
+   */
+  setDrone(level: number): void {
+    if (level <= 0 && !this.droneGain) return
+    const ctx = this.ensure()
+    if (!ctx || !this.master || ctx.state !== 'running') return
+    if (!this.droneGain) {
+      const oscA = ctx.createOscillator()
+      const oscB = ctx.createOscillator()
+      const filter = ctx.createBiquadFilter()
+      this.droneGain = ctx.createGain()
+      oscA.type = 'sawtooth'
+      oscA.frequency.value = 46
+      oscB.type = 'sawtooth'
+      oscB.frequency.value = 46.35
+      filter.type = 'lowpass'
+      filter.frequency.value = 130
+      this.droneGain.gain.value = 0
+      oscA.connect(filter)
+      oscB.connect(filter)
+      filter.connect(this.droneGain)
+      this.droneGain.connect(this.master)
+      oscA.start()
+      oscB.start()
+    }
+    const target = Math.max(0, Math.min(1, level)) * 0.055
+    this.droneGain.gain.setTargetAtTime(target, ctx.currentTime, 0.12)
   }
 
   /** Baque no pouso: ruído grave + thump senoidal, escala com a queda. */

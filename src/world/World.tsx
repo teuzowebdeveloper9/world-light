@@ -14,6 +14,7 @@ import { FloatingParticles } from '../visuals/FloatingParticles'
 import { WorldFog } from '../visuals/WorldFog'
 import { playerState } from '../player/PlayerController'
 import { Player } from '../player/Player'
+import { NpcEncounters } from '../npc/NpcEncounters'
 import { ChunkManager } from './ChunkManager'
 import { DogManager } from './DogManager'
 import { lerp } from '../utils/math'
@@ -79,6 +80,7 @@ export function World() {
       <FloatingParticles />
       <ChunkManager />
       <DogManager />
+      <NpcEncounters />
       <Player />
     </>
   )
