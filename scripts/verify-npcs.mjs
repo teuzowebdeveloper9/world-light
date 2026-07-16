@@ -182,12 +182,38 @@ try {
       const p = window.__playerState.position
       window.__cameraRig.yaw = Math.atan2(-(s.x - p.x), -(s.z - p.z))
     })
+  const sageDist = () =>
+    page.evaluate(() => {
+      const s = window.__sagePos
+      if (!s) return Infinity
+      const p = window.__playerState.position
+      return Math.hypot(s.x - p.x, s.z - p.z)
+    })
   if (!(await walkUntil(sageNear, steerToSage, 420000))) {
     fail('não conseguiu chegar a 4.6m do sábio')
   } else {
+    // Correndo a 11 u/s o poll de 700ms passa DIRETO do sábio — aproxima
+    // fino com toques curtos de W até estacionar dentro dos 5.5m do prompt.
+    for (let i = 0; i < 8; i++) {
+      const d = await sageDist()
+      if (d < 4.5) break
+      await steerToSage()
+      await page.keyboard.down('KeyW')
+      await page.waitForTimeout(350)
+      await page.keyboard.up('KeyW')
+      await page.waitForTimeout(700)
+    }
+    console.log(`  distância final até o sábio: ${(await sageDist()).toFixed(1)}m`)
     const prompt = await page.waitForSelector('.npc-prompt', { timeout: 8000 }).catch(() => null)
     if (!prompt) {
-      fail('prompt "falar com o Sábio" não apareceu perto dele')
+      const diag = await page.evaluate(() => ({
+        stage: window.__sageStage,
+        dist: window.__sageDist,
+        prompt: window.__store?.getState?.().sagePromptVisible,
+        dialog: window.__store?.getState?.().sageDialogIndex,
+        paused: window.__store?.getState?.().paused,
+      }))
+      fail('prompt "falar com o Sábio" não apareceu perto dele — diag: ' + JSON.stringify(diag))
     } else {
       await page.waitForTimeout(600)
       await shot('npc-04-sage-prompt.png')

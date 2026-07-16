@@ -15,6 +15,7 @@ import { playerState } from '../player/PlayerController'
 import { getTerrainSampler } from '../world/noise'
 import { sfxController } from '../audio/SfxController'
 import { clamp, dampFactor, smoothstep } from '../utils/math'
+import { NPC_TEST_MODE } from './npcShared'
 
 export const SAGE_MODEL_URL = `${import.meta.env.BASE_URL}models/sage.glb`
 
@@ -77,24 +78,34 @@ export function Sage() {
   const t = useRef(0)
   const rise = useRef(0)
   const fadingOut = useRef(false)
+  const spawned = useRef(false)
 
   // Materializa a ~100m NA DIREÇÃO em que o viajante olha — quem anda para
   // frente vai vê-lo crescer no horizonte, não nas costas. Sonda alguns
   // ângulos ao redor e prefere o primeiro chão razoavelmente PLANO: spawnar
   // num paredão íngreme deixaria o encontro fisicamente inalcançável.
   useEffect(() => {
+    // Um spawn por vida: se alguma dep trocar de identidade num re-render,
+    // re-executar aqui TELEPORTARIA o sábio para +100m dali.
+    if (spawned.current) return
+    spawned.current = true
     const p = playerState.position
+    // Modo teste: pertinho, à direita da princesa — sem sonda de terreno.
+    const appearDist = NPC_TEST_MODE ? 14 : APPEAR_DISTANCE
+    const baseAngle = playerState.facing + (NPC_TEST_MODE ? 0.55 : 0)
     const normalOut: [number, number, number] = [0, 1, 0]
-    let x = p.x + Math.sin(playerState.facing) * APPEAR_DISTANCE
-    let z = p.z + Math.cos(playerState.facing) * APPEAR_DISTANCE
-    for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
-      const cx = p.x + Math.sin(playerState.facing + off) * APPEAR_DISTANCE
-      const cz = p.z + Math.cos(playerState.facing + off) * APPEAR_DISTANCE
-      const [, nY] = sampler.normal(cx, cz, normalOut)
-      if (nY >= 0.82) {
-        x = cx
-        z = cz
-        break
+    let x = p.x + Math.sin(baseAngle) * appearDist
+    let z = p.z + Math.cos(baseAngle) * appearDist
+    if (!NPC_TEST_MODE) {
+      for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+        const cx = p.x + Math.sin(baseAngle + off) * appearDist
+        const cz = p.z + Math.cos(baseAngle + off) * appearDist
+        const [, nY] = sampler.normal(cx, cz, normalOut)
+        if (nY >= 0.82) {
+          x = cx
+          z = cz
+          break
+        }
       }
     }
     pos.current.set(x, sampler.height(x, z), z)
@@ -124,6 +135,12 @@ export function Sage() {
     const px = pos.current.x - pp.x
     const pz = pos.current.z - pp.z
     const dist = Math.hypot(px, pz)
+
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>
+      w.__sageStage = stage.current
+      w.__sageDist = dist
+    }
 
     if (stage.current === 'arriving') {
       // Pilar de luz anuncia; o sábio se condensa no pico do clarão.

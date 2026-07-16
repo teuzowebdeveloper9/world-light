@@ -16,7 +16,7 @@ import { playerState } from '../player/PlayerController'
 import { getTerrainSampler } from '../world/noise'
 import { sfxController } from '../audio/SfxController'
 import { clamp, dampFactor } from '../utils/math'
-import { npcState, WOLF_AT_SECONDS } from './npcShared'
+import { NPC_TEST_MODE, npcState, WOLF_AT_SECONDS } from './npcShared'
 
 export const WOLF_MODEL_URL = `${import.meta.env.BASE_URL}models/wolf-hooded.glb`
 
@@ -81,8 +81,13 @@ export function Wolf() {
 
   function spawn(): void {
     const p = playerState.position
-    const x = p.x - Math.sin(playerState.facing) * SPAWN_BEHIND
-    const z = p.z - Math.cos(playerState.facing) * SPAWN_BEHIND
+    // Modo teste: pertinho, à esquerda da princesa, parado — sem caçada.
+    const x = NPC_TEST_MODE
+      ? p.x + Math.sin(playerState.facing - 0.55) * 14
+      : p.x - Math.sin(playerState.facing) * SPAWN_BEHIND
+    const z = NPC_TEST_MODE
+      ? p.z + Math.cos(playerState.facing - 0.55) * 14
+      : p.z - Math.cos(playerState.facing) * SPAWN_BEHIND
     pos.current.set(x, sampler.height(x, z), z)
     heading.current.set(0, 1)
     for (const m of mats) {
@@ -90,7 +95,7 @@ export function Wolf() {
       m.opacity = 1
     }
     stage.current = 'chasing'
-    actions.Run?.reset().fadeIn(0.2).play()
+    if (!NPC_TEST_MODE) actions.Run?.reset().fadeIn(0.2).play()
     if (import.meta.env.DEV) {
       ;(window as unknown as Record<string, unknown>).__wolfPos = pos.current
     }
@@ -125,7 +130,15 @@ export function Wolf() {
     const dz = pp.z - pos.current.z
     const dist = Math.hypot(dx, dz)
 
-    if (stage.current === 'chasing') {
+    if (stage.current === 'chasing' && NPC_TEST_MODE) {
+      // Modo teste: só encara o viajante, parado. Sem drone, sem captura.
+      if (dist > 0.01) {
+        const targetYaw = Math.atan2(dx, dz)
+        let dyaw = targetYaw - yaw.current
+        dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw))
+        yaw.current += dyaw * dampFactor(4, dt)
+      }
+    } else if (stage.current === 'chasing') {
       // Persegue de verdade: mira o viajante com viração suavizada.
       if (dist > 0.01) {
         const inv = 1 / dist

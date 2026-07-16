@@ -301,6 +301,15 @@ export function Player() {
         vy = Math.max(vy, TERMINAL_FALL_SPEED)
 
         body.setLinvel({ x: vx, y: vy, z: vz }, true)
+      } else {
+        // Fora de "playing" (loading da entrada, pausa) ninguém está no
+        // controle — e a cápsula SEM ATRITO desliza livre em qualquer rampa.
+        // Sem este freio o player entrava no jogo derrapando a 10-30 m/s
+        // (assustava a princesa no primeiro segundo antes de qualquer um
+        // vê-la) e continuava escorregando ladeira abaixo enquanto pausado.
+        if (lv.x !== 0 || lv.z !== 0) {
+          body.setLinvel({ x: 0, y: Math.max(lv.y, TERMINAL_FALL_SPEED), z: 0 }, true)
+        }
       }
 
       // Rede de segurança analítica: nunca atravessa o terreno.

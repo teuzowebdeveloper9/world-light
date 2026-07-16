@@ -115,3 +115,9 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
   closeSageDialog: () => set({ sageDialogIndex: null }),
   setBlackout: (on) => set({ blackout: on }),
 }))
+
+// Inspeção via console/Playwright durante o desenvolvimento (aqui embaixo:
+// referenciar o store antes do const acima seria TDZ e quebraria o load).
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__store = useExperienceStore
+}

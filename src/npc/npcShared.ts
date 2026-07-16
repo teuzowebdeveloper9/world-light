@@ -16,6 +16,15 @@ function readSecondsParam(name: string, fallback: number): number {
   }
 }
 
+/**
+ * MODO TESTE (hardcoded, sem UI): com true, os TRÊS personagens nascem
+ * juntos perto do viajante assim que o mundo abre e ficam PARADOS para
+ * inspeção de perto — a princesa não foge, o lobo não persegue (só encara)
+ * e o sábio conversa normalmente com H. Volte para false para restaurar o
+ * comportamento real do jogo (fuga, 3 min do sábio, caçada dos 7 min).
+ */
+export const NPC_TEST_MODE = true
+
 export const npcState = {
   /** Segundos ANDADOS de verdade — parado, pausado ou no menu não conta. */
   walkTime: 0,

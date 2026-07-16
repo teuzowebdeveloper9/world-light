@@ -12,10 +12,16 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useExperienceStore } from '../state/useExperienceStore'
 import { playerState } from '../player/PlayerController'
-import { npcState, SAGE_AT_SECONDS, WOLF_AT_SECONDS } from './npcShared'
+import { NPC_TEST_MODE, npcState, SAGE_AT_SECONDS, WOLF_AT_SECONDS } from './npcShared'
 import { Princess } from './Princess'
 import { Sage, SAGE_MODEL_URL } from './Sage'
 import { Wolf, WOLF_MODEL_URL } from './Wolf'
+
+// Modo teste: todo mundo em cena desde o início — carrega já.
+if (NPC_TEST_MODE) {
+  useGLTF.preload(SAGE_MODEL_URL)
+  useGLTF.preload(WOLF_MODEL_URL)
+}
 
 /** Antecedência do preload dos GLBs tardios (segundos de caminhada). */
 const PRELOAD_LEAD = 45
@@ -57,12 +63,12 @@ export function NpcEncounters() {
           <Princess />
         </Suspense>
       )}
-      {sageSpawned && (
+      {(sageSpawned || (NPC_TEST_MODE && phase === 'playing')) && (
         <Suspense fallback={null}>
           <Sage />
         </Suspense>
       )}
-      {wolfSpawned && (
+      {(wolfSpawned || (NPC_TEST_MODE && phase === 'playing')) && (
         <Suspense fallback={null}>
           <Wolf />
         </Suspense>

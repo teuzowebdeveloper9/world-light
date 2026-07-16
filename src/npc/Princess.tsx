@@ -18,6 +18,7 @@ import { cameraRig } from '../player/cameraRig'
 import { getTerrainSampler } from '../world/noise'
 import { sfxController } from '../audio/SfxController'
 import { clamp, dampFactor } from '../utils/math'
+import { NPC_TEST_MODE } from './npcShared'
 
 export const PRINCESS_MODEL_URL = `${import.meta.env.BASE_URL}models/princess.glb`
 useGLTF.preload(PRINCESS_MODEL_URL)
@@ -85,7 +86,11 @@ export function Princess() {
   const glow = useRef<THREE.PointLight>(null)
 
   // Nasce alguns metros à frente do viajante, de frente para ele.
+  // (Um spawn por vida — re-executar reposicionaria ela no meio da fuga.)
+  const spawned = useRef(false)
   useEffect(() => {
+    if (spawned.current) return
+    spawned.current = true
     const p = playerState.position
     const dx = Math.sin(playerState.facing)
     const dz = Math.cos(playerState.facing)
@@ -117,16 +122,26 @@ export function Princess() {
     const pz = pos.current.z - pp.z
     const dist = Math.hypot(px, pz)
 
+    if (import.meta.env.DEV) {
+      ;(window as unknown as Record<string, unknown>).__princessDbg = {
+        timer: timer.current,
+        fleeing: fleeing.current,
+        introDone: cameraRig.introDone,
+        dist,
+      }
+    }
+
     if (!fleeing.current) {
       // O relógio da fuga só corre depois da intro; chegar perto assusta
-      // e dispara na hora de qualquer jeito.
-      if (cameraRig.introDone) timer.current -= dt
+      // e dispara na hora de qualquer jeito. No MODO TESTE ela nunca foge:
+      // fica parada te encarando, para inspeção de perto.
+      if (!NPC_TEST_MODE && cameraRig.introDone) timer.current -= dt
       // Encara o viajante enquanto espera.
       const facePlayer = Math.atan2(-px, -pz)
       let d = facePlayer - yaw.current
       d = Math.atan2(Math.sin(d), Math.cos(d))
       yaw.current += d * dampFactor(6, dt)
-      if (timer.current <= 0 || dist < PANIC_DISTANCE) {
+      if (!NPC_TEST_MODE && (timer.current <= 0 || dist < PANIC_DISTANCE)) {
         fleeing.current = true
         actions.Run?.reset().fadeIn(0.15).play()
       }
